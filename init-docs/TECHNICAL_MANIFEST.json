@@ -1,0 +1,824 @@
+{
+  "manifestVersion": "1.2",
+  "generatedDate": "2026-02-19",
+  "canonicalEndpointManifest": "CANONICAL_ENDPOINTS_MANIFEST.md",
+  "project": {
+    "name": "Muxa Universal LLM Proxy",
+    "goal": "Replicate feature-level behavior without reusing source code",
+    "runtime": {
+      "language": "JavaScript/Node.js",
+      "minNodeVersion": "20",
+      "webFramework": "Express-style HTTP server"
+    }
+  },
+  "architecture": {
+    "style": "Modular monolith with pluggable provider adapters and tool registry",
+    "coreLayers": [
+      "API compatibility layer",
+      "middleware and policy layer",
+      "orchestration and tool loop layer",
+      "provider adapter layer",
+      "state and cache layer",
+      "observability and operations layer"
+    ],
+    "startupSequence": [
+      "Load and validate environment config",
+      "Initialize MCP/tool registry (lazy or eager)",
+      "Initialize worker pool if enabled",
+      "Initialize sidecar compression if enabled",
+      "Optionally wait for local model readiness",
+      "Start HTTP server",
+      "Start session cleanup and config watcher",
+      "Register graceful shutdown hooks"
+    ]
+  },
+  "apiContract": {
+    "base": {
+      "defaultPort": 8081,
+      "jsonBodyLimit": "configurable"
+    },
+    "anthropicCompatible": {
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/v1/messages",
+          "supportsStreaming": true,
+          "supportsTools": true
+        },
+        {
+          "method": "POST",
+          "path": "/v1/messages/count_tokens"
+        }
+      ],
+      "streamingEventOrder": [
+        "message_start",
+        "content_block_start",
+        "content_block_delta",
+        "content_block_stop",
+        "message_delta",
+        "message_stop"
+      ]
+    },
+    "openAICompatible": {
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/v1/chat/completions",
+          "supportsStreaming": true,
+          "supportsTools": true
+        },
+        {
+          "method": "POST",
+          "path": "/v1/responses",
+          "supportsStreaming": true,
+          "supportsTools": true
+        },
+        {
+          "method": "GET",
+          "path": "/v1/models"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/embeddings"
+        },
+        {
+          "method": "GET",
+          "path": "/v1/health"
+        }
+      ],
+      "streamingFormat": {
+        "chunkPrefix": "data:",
+        "terminalMarker": "[DONE]"
+      }
+    },
+    "opsEndpoints": [
+      "GET /health",
+      "GET /health/live",
+      "GET /health/ready",
+      "GET /health/headroom",
+      "GET /debug/session",
+      "GET /v1/agents",
+      "GET /v1/agents/stats",
+      "GET /v1/agents/:agentId/transcript",
+      "GET /v1/agents/:executionId",
+      "GET /api/sessions/:sessionId/tokens",
+      "GET /api/tokens/stats",
+      "GET /metrics",
+      "GET /metrics/observability",
+      "GET /metrics/prometheus",
+      "GET /metrics/compression",
+      "GET /metrics/circuit-breakers",
+      "GET /metrics/load-shedding",
+      "GET /metrics/worker-pool",
+      "GET /metrics/semantic-cache",
+      "GET /metrics/lazy-tools",
+      "GET /routing/stats",
+      "GET /v1/providers",
+      "GET /v1/providers/:name",
+      "GET /v1/config",
+      "GET /v1/health/providers",
+      "GET /v1/health/providers/:name",
+      "GET /headroom/status",
+      "POST /headroom/restart",
+      "GET /headroom/logs",
+      "POST /api/event_logging/batch"
+    ]
+  },
+  "installationProfiles": {
+    "supportedMethods": [
+      "npm global",
+      "source clone",
+      "install script",
+      "homebrew",
+      "docker compose",
+      "standalone docker"
+    ],
+    "entryCommands": [
+      "muxa",
+      "muxa start",
+      "npm start",
+      "node index.js"
+    ]
+  },
+  "canonicalRequestModel": {
+    "fields": [
+      "model",
+      "messages",
+      "system",
+      "tools",
+      "max_tokens",
+      "temperature",
+      "stream",
+      "metadata/session/cwd",
+      "limits: max_steps and max_duration_ms"
+    ],
+    "normalizationRules": [
+      "Normalize message blocks across Anthropic/OpenAI/provider schemas",
+      "Preserve tool_use and tool_result continuity",
+      "Strip internal-only fields before provider call",
+      "Normalize tool schema to target provider expectations"
+    ]
+  },
+  "providerAbstraction": {
+    "supportedProviders": [
+      "databricks",
+      "azure-anthropic",
+      "azure-openai",
+      "openrouter",
+      "openai",
+      "ollama",
+      "llamacpp",
+      "lmstudio",
+      "bedrock",
+      "zai",
+      "vertex"
+    ],
+    "adapterResponsibilities": [
+      "endpoint and header construction",
+      "auth and credential application",
+      "request/response schema translation",
+      "stream adaptation",
+      "usage token extraction",
+      "error normalization"
+    ],
+    "providerSpecificNotes": {
+      "bedrock": {
+        "requires": [
+          "AWS_BEDROCK_API_KEY",
+          "AWS_BEDROCK_REGION",
+          "AWS_BEDROCK_MODEL_ID"
+        ],
+        "toolCallingNote": "Best on Claude family models"
+      },
+      "openrouter": {
+        "requires": [
+          "OPENROUTER_API_KEY",
+          "OPENROUTER_MODEL"
+        ],
+        "embeddingsNote": "can reuse same key for chat and embeddings"
+      },
+      "ollama": {
+        "requires": [
+          "OLLAMA_ENDPOINT",
+          "OLLAMA_MODEL"
+        ],
+        "startupBehavior": "wait-for-ollama capability"
+      }
+    },
+    "routing": {
+      "inputs": [
+        "primary provider",
+        "request complexity and tool count",
+        "prefer local flag",
+        "fallback enabled",
+        "provider health"
+      ],
+      "decisions": [
+        "route simple requests to local provider",
+        "route complex requests to cloud provider",
+        "fallback to configured provider on failure",
+        "emit routing diagnostics headers"
+      ],
+      "guardrails": [
+        "validate fallback provider at startup",
+        "reject local providers as fallback in hybrid mode",
+        "support remote provider endpoints (IP/hostname/domain)"
+      ]
+    }
+  },
+  "orchestrator": {
+    "agentLoop": {
+      "maxStepsDefault": 8,
+      "loopGuard": "policy threshold configurable",
+      "flow": [
+        "prepare context and session",
+        "inject memories and optimize prompt",
+        "load needed tool categories",
+        "invoke provider",
+        "execute requested tools",
+        "append tool results and continue",
+        "finalize response and persist turn",
+        "run async memory extraction"
+      ]
+    },
+    "executionModes": [
+      {
+        "mode": "server",
+        "behavior": "proxy executes tools on server"
+      },
+      {
+        "mode": "client",
+        "behavior": "proxy returns tool calls for client-side execution"
+      }
+    ]
+  },
+  "toolingSystem": {
+    "categories": [
+      "stubs",
+      "workspace",
+      "execution",
+      "web",
+      "indexer",
+      "edits",
+      "git",
+      "tasks",
+      "tests",
+      "mcp",
+      "agentTask"
+    ],
+    "lazyLoading": {
+      "enabledByDefault": true,
+      "coreAtStartup": [
+        "stubs",
+        "workspace",
+        "execution"
+      ],
+      "triggerMethod": "keyword and requested-tool inference"
+    },
+    "coreCapabilities": [
+      "file read/write/edit",
+      "glob/grep/symbol search",
+      "shell execution",
+      "git workflows",
+      "web fetch/search",
+      "task and test tooling",
+      "MCP bridge tooling"
+    ],
+    "clientToolMapping": {
+      "clients": [
+        "codex",
+        "cline",
+        "kilo",
+        "continue",
+        "unknown"
+      ],
+      "examples": {
+        "codex": [
+          "Bash -> shell_command",
+          "Read -> read_file",
+          "Edit -> apply_patch"
+        ],
+        "cline": [
+          "Bash -> execute_command",
+          "Write -> write_to_file",
+          "Edit -> replace_in_file"
+        ],
+        "continue": [
+          "Write -> create_new_file",
+          "Edit -> edit_existing_file"
+        ]
+      }
+    },
+    "mcp": {
+      "enabledByDefault": true,
+      "discoveryPaths": [
+        "./mcp-servers",
+        "~/.mcp/servers",
+        "MCP_SERVER_PATH"
+      ],
+      "transport": "JSON-RPC 2.0",
+      "sandbox": {
+        "supported": true,
+        "defaultEnabled": true,
+        "containerized": true
+      }
+    }
+  },
+  "stateAndPersistence": {
+    "stores": [
+      {
+        "name": "sessions",
+        "type": "SQLite",
+        "purpose": "session continuity"
+      },
+      {
+        "name": "memories",
+        "type": "SQLite + FTS5",
+        "purpose": "long-term memory"
+      },
+      {
+        "name": "workspace-index",
+        "type": "SQLite",
+        "purpose": "workspace indexing"
+      }
+    ],
+    "memorySchema": {
+      "fields": [
+        "id",
+        "session_id",
+        "memory_type",
+        "content",
+        "context",
+        "importance",
+        "created_at",
+        "last_accessed",
+        "access_count"
+      ],
+      "types": [
+        "preference",
+        "decision",
+        "fact",
+        "entity",
+        "relationship"
+      ]
+    }
+  },
+  "memoryPipeline": {
+    "extraction": {
+      "when": "post-response",
+      "method": "surprise-based",
+      "signals": [
+        "novelty",
+        "contradiction",
+        "specificity",
+        "emphasis",
+        "context-switch"
+      ]
+    },
+    "retrieval": {
+      "defaultTopN": 5,
+      "ranking": [
+        "relevance",
+        "importance",
+        "recency"
+      ],
+      "injectionModes": [
+        "system",
+        "assistant_preamble"
+      ]
+    },
+    "decay": {
+      "enabled": true,
+      "formula": "exponential half-life"
+    }
+  },
+  "caching": {
+    "promptCache": {
+      "enabledByDefault": true,
+      "strategy": "hash-keyed exact cache",
+      "eviction": "TTL + max entries"
+    },
+    "semanticCache": {
+      "enabledByDefault": false,
+      "requiresEmbeddings": true,
+      "lookup": "similarity threshold"
+    },
+    "requiredMetrics": [
+      "cache_hits",
+      "cache_misses",
+      "cache_hit_rate",
+      "cache_entries"
+    ]
+  },
+  "optimizationPipeline": {
+    "target": "60-80% token reduction",
+    "stages": [
+      "smart tool selection",
+      "prompt caching",
+      "memory dedup",
+      "tool output truncation",
+      "dynamic system prompt",
+      "history compression"
+    ],
+    "headroomSidecar": {
+      "enabledOption": true,
+      "features": [
+        "cache aligner",
+        "smart crusher",
+        "tool crusher",
+        "rolling window",
+        "CCR",
+        "optional LLMLingua"
+      ],
+      "modes": [
+        "audit",
+        "optimize"
+      ]
+    }
+  },
+  "reliabilityAndSafety": {
+    "middlewareOrder": [
+      "load shedding",
+      "request logging",
+      "metrics",
+      "session",
+      "budget/rate-limit",
+      "router",
+      "error handler"
+    ],
+    "circuitBreaker": {
+      "states": [
+        "CLOSED",
+        "OPEN",
+        "HALF_OPEN"
+      ],
+      "scope": "provider-specific"
+    },
+    "retry": {
+      "strategy": "exponential backoff with jitter",
+      "retryable": [
+        "network/transient",
+        "5xx"
+      ],
+      "nonRetryable": [
+        "auth",
+        "validation",
+        "most 4xx"
+      ]
+    },
+    "loadShedding": {
+      "signals": [
+        "heap",
+        "memory",
+        "active requests",
+        "event loop delay"
+      ],
+      "response": "503 + retry-after"
+    },
+    "policies": [
+      "workspace boundaries",
+      "web host allowlist",
+      "git push/test controls",
+      "tool loop threshold",
+      "max steps and max tool calls"
+    ],
+    "failureModes": [
+      {
+        "id": "provider-timeout",
+        "handling": "retry then fallback"
+      },
+      {
+        "id": "provider-auth",
+        "handling": "normalized fail-fast error"
+      },
+      {
+        "id": "sidecar-unavailable",
+        "handling": "continue without compression"
+      },
+      {
+        "id": "tool-loop-overrun",
+        "handling": "terminate loop with policy error"
+      }
+    ]
+  },
+  "observability": {
+    "logging": {
+      "format": "structured JSON",
+      "fields": [
+        "requestId",
+        "sessionId",
+        "provider",
+        "statusCode",
+        "latencyMs",
+        "tokenUsage"
+      ]
+    },
+    "metricsFamilies": [
+      "requests",
+      "latency",
+      "errors",
+      "token usage",
+      "cache stats",
+      "circuit state",
+      "load shedding",
+      "worker pool",
+      "lazy loader"
+    ],
+    "healthChecks": {
+      "liveness": "process up",
+      "readiness": "dependencies ready",
+      "deepChecks": [
+        "db",
+        "provider",
+        "resource pressure",
+        "circuit state"
+      ]
+    }
+  },
+  "configurationContract": {
+    "mustSupportEnvGroups": [
+      "provider and credentials",
+      "routing and fallback",
+      "tool execution",
+      "agent execution",
+      "memory",
+      "token optimization",
+      "cache",
+      "worker pool",
+      "mcp and sandbox",
+      "mcp manifests and discovery",
+      "workspace test profiles",
+      "retry/circuit/load-shed",
+      "rate limiting",
+      "workspace/policies",
+      "security and audit logging",
+      "oversized error controls",
+      "web retry controls",
+      "hot reload",
+      "headroom",
+      "embeddings override"
+    ],
+    "criticalValidationRules": [
+      "reject unsupported providers",
+      "require provider credentials for selected provider",
+      "disallow local fallback providers in hybrid mode",
+      "validate endpoint URL fields",
+      "validate tool execution mode enum"
+    ],
+    "envSchema": {
+      "core": [
+        "PORT",
+        "LOG_LEVEL",
+        "MODEL_PROVIDER",
+        "WORKSPACE_ROOT"
+      ],
+      "routing": [
+        "PREFER_OLLAMA",
+        "FALLBACK_ENABLED",
+        "FALLBACK_PROVIDER",
+        "OLLAMA_MAX_TOOLS_FOR_ROUTING",
+        "OPENROUTER_MAX_TOOLS_FOR_ROUTING"
+      ],
+      "tooling": [
+        "TOOL_EXECUTION_MODE",
+        "POLICY_MAX_STEPS",
+        "POLICY_MAX_TOOL_CALLS",
+        "POLICY_TOOL_LOOP_THRESHOLD"
+      ],
+      "agents": [
+        "AGENTS_ENABLED",
+        "AGENTS_DEFAULT_MAX_STEPS",
+        "AGENTS_DEFAULT_MAX_DURATION_MS"
+      ],
+      "memory": [
+        "MEMORY_ENABLED",
+        "MEMORY_RETRIEVAL_LIMIT",
+        "MEMORY_SURPRISE_THRESHOLD",
+        "MEMORY_MAX_AGE_DAYS",
+        "MEMORY_MAX_COUNT",
+        "MEMORY_DECAY_ENABLED",
+        "MEMORY_DECAY_HALF_LIFE",
+        "MEMORY_INJECTION_FORMAT",
+        "MEMORY_EXTRACTION_ENABLED"
+      ],
+      "cacheAndOptimization": [
+        "PROMPT_CACHE_ENABLED",
+        "PROMPT_CACHE_MAX_ENTRIES",
+        "PROMPT_CACHE_TTL_MS",
+        "SEMANTIC_CACHE_ENABLED",
+        "SEMANTIC_CACHE_THRESHOLD",
+        "TOKEN_TRACKING_ENABLED",
+        "TOOL_TRUNCATION_ENABLED",
+        "MEMORY_DEDUP_ENABLED",
+        "MEMORY_DEDUP_LOOKBACK",
+        "HISTORY_COMPRESSION_ENABLED",
+        "TOKEN_BUDGET_MAX"
+      ],
+      "workerPool": [
+        "WORKER_POOL_ENABLED",
+        "WORKER_POOL_SIZE",
+        "WORKER_POOL_TASK_TIMEOUT_MS",
+        "WORKER_POOL_OFFLOAD_THRESHOLD_BYTES"
+      ],
+      "mcp": [
+        "MCP_ENABLED",
+        "MCP_SANDBOX_ENABLED",
+        "MCP_SANDBOX_IMAGE",
+        "MCP_SERVER_PATH",
+        "MCP_SERVER_MANIFEST",
+        "MCP_MANIFEST_DIRS"
+      ],
+      "workspaceTests": [
+        "WORKSPACE_TEST_PROFILE",
+        "WORKSPACE_TEST_TIMEOUT_MS"
+      ],
+      "securityAndAudit": [
+        "SECURITY_BLOCK_ABSOLUTE_OUTSIDE_ROOT",
+        "SECURITY_REDACT_SECRETS_IN_LOGS",
+        "LLM_AUDIT_ENABLED",
+        "LLM_AUDIT_LOG_DIR"
+      ],
+      "oversizedErrors": [
+        "OVERSIZED_ERROR_LOGGING_ENABLED",
+        "OVERSIZED_ERROR_LOG_DIR"
+      ],
+      "policyExtended": [
+        "POLICY_SAFE_COMMANDS_ENABLED",
+        "POLICY_SAFE_COMMANDS_ALLOWLIST"
+      ],
+      "webRetry": [
+        "WEB_SEARCH_RETRY_ENABLED",
+        "WEB_SEARCH_MAX_RETRIES"
+      ],
+      "hotReload": [
+        "HOT_RELOAD_ENABLED",
+        "HOT_RELOAD_DEBOUNCE_MS"
+      ],
+      "headroom": [
+        "HEADROOM_ENABLED",
+        "HEADROOM_MODE",
+        "HEADROOM_ENDPOINT",
+        "HEADROOM_TIMEOUT_MS",
+        "HEADROOM_MIN_TOKENS",
+        "HEADROOM_DOCKER_ENABLED",
+        "HEADROOM_DOCKER_IMAGE",
+        "HEADROOM_DOCKER_PORT",
+        "HEADROOM_CCR",
+        "HEADROOM_CCR_TTL",
+        "HEADROOM_LLMLINGUA"
+      ]
+    }
+  },
+  "clientCompatibility": {
+    "targets": [
+      "Claude Code CLI",
+      "Cursor IDE",
+      "OpenAI Codex CLI",
+      "Cline",
+      "Kilo",
+      "Continue"
+    ],
+    "setupPatterns": {
+      "claude": {
+        "baseUrlEnv": "ANTHROPIC_BASE_URL=http://localhost:<port>",
+        "apiKeyEnv": "ANTHROPIC_API_KEY=dummy"
+      },
+      "cursor": {
+        "baseUrl": "http://localhost:<port>/v1",
+        "apiKey": "any non-empty sk-* value"
+      },
+      "codex": {
+        "baseUrlEnv": "OPENAI_BASE_URL=http://localhost:<port>/v1",
+        "apiKeyEnv": "OPENAI_API_KEY=dummy",
+        "wireApi": [
+          "responses",
+          "chat"
+        ]
+      }
+    },
+    "auxiliaryEndpoints": {
+      "eventLoggingBatch": {
+        "path": "/api/event_logging/batch",
+        "behavior": "accept-and-noop",
+        "purpose": "compatibility with client telemetry/event calls"
+      }
+    }
+  },
+  "deploymentProfiles": [
+    {
+      "name": "local-dev",
+      "characteristics": [
+        "single process",
+        "optional local models",
+        "optional local embeddings"
+      ]
+    },
+    {
+      "name": "docker-compose",
+      "characteristics": [
+        "proxy container",
+        "optional ollama container",
+        "optional headroom sidecar",
+        "persistent volumes"
+      ]
+    },
+    {
+      "name": "production-cluster",
+      "characteristics": [
+        "liveness/readiness probes",
+        "graceful shutdown",
+        "central logging",
+        "prometheus scraping",
+        "strict policy config"
+      ]
+    }
+  ],
+  "testingStrategy": {
+    "framework": "Node built-in test runner",
+    "testTypes": [
+      "unit",
+      "integration",
+      "performance",
+      "provider compatibility",
+      "streaming protocol",
+      "memory subsystem",
+      "routing/fallback"
+    ],
+    "minimumAcceptanceSuite": [
+      "anthropic non-stream + stream",
+      "openai non-stream + stream",
+      "tool loop in server mode",
+      "tool passthrough in client mode",
+      "fallback on primary provider failure",
+      "embeddings endpoint with selected backend",
+      "memory extraction + retrieval behavior",
+      "metrics and health endpoint correctness"
+    ],
+    "manualSmokeChecklist": [
+      "Claude CLI prompt and file-edit flow",
+      "Cursor chat/cmd+k/@Codebase flow",
+      "Codex responses wire API and chat fallback",
+      "Docker compose startup and health checks"
+    ],
+    "qualityGates": {
+      "protocolCompatibility": ">=95% scenario pass rate",
+      "criticalPathCoverage": ">=80%",
+      "newFeatureCoverage": ">=90%"
+    }
+  },
+  "runbooks": {
+    "troubleshootingEntrypoints": [
+      "check health endpoints",
+      "verify port and process binding",
+      "verify env and provider credentials",
+      "enable debug logs",
+      "inspect metrics for cache/routing/load-shed"
+    ],
+    "knownIssuePatterns": [
+      {
+        "issue": "connection refused",
+        "checks": [
+          "service running",
+          "correct port",
+          "correct /v1 base URL for OpenAI clients"
+        ]
+      },
+      {
+        "issue": "repeated responses",
+        "checks": [
+          "semantic cache enabled",
+          "cache threshold tuning",
+          "prompt normalization"
+        ]
+      },
+      {
+        "issue": "tool calls not executing",
+        "checks": [
+          "tool execution mode",
+          "policy thresholds",
+          "client trust/sandbox settings"
+        ]
+      }
+    ]
+  },
+  "buildPlan": {
+    "phase1": "server bootstrap + config + health",
+    "phase2": "anthropic/openai adapter layer",
+    "phase3": "provider adapters + routing + fallback",
+    "phase4": "tool registry + loop + client mapping",
+    "phase5": "memory + cache + embeddings",
+    "phase6": "observability + hardening + load controls",
+    "phase7": "testing, performance tuning, deployment templates"
+  },
+  "replicationConstraints": {
+    "must": [
+      "match external behavior and API contracts",
+      "preserve feature parity across providers/tools/memory/ops",
+      "implement independently without code copying"
+    ],
+    "mustNot": [
+      "copy source text or proprietary implementation fragments",
+      "rely on undocumented quirks unless required for compatibility"
+    ]
+  }
+}

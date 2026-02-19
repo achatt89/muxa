@@ -1,0 +1,29 @@
+{
+  "root": true,
+  "env": {
+    "es2022": true,
+    "node": true
+  },
+  "extends": ["eslint:recommended", "plugin:n/recommended", "plugin:promise/recommended", "plugin:import/recommended", "prettier"],
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "script"
+  },
+  "rules": {
+    "no-console": "off",
+    "n/no-missing-require": "off",
+    "import/no-extraneous-dependencies": ["error", { "devDependencies": true }]
+  },
+  "overrides": [
+    {
+      "files": ["test/**/*.js"],
+      "env": {
+        "node": true,
+        "mocha": true
+      },
+      "rules": {
+        "n/no-unsupported-features/es-syntax": "off"
+      }
+    }
+  ]
+}

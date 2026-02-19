@@ -1,0 +1,140 @@
+{
+  "version": "1.1",
+  "mode": "one-shot-autonomous",
+  "date": "2026-02-19",
+  "inputs": {
+    "business": "BRD_MANIFEST.md",
+    "product": "PRD_MANIFEST.md",
+    "technical": "TECHNICAL_MANIFEST.json",
+    "backlog": "IMPLEMENTATION_BACKLOG_MANIFEST.md",
+    "traceability": "FR_TRACEABILITY_MATRIX.md",
+    "parityChecklist": "PARITY_AUDIT_CHECKLIST.md"
+  },
+  "executionPolicy": {
+    "allowHumanQuestions": false,
+    "maxAutoRemediationAttemptsPerFailure": 3,
+    "mustContinueOnNonBlockingFailure": true,
+    "mustImplementNonMvp": true,
+    "mustPreserveIndependentImplementation": true
+  },
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "foundation",
+      "epics": ["Epic 1"],
+      "requiredChecks": [
+        "service boot",
+        "config validation",
+        "cli basics"
+      ]
+    },
+    {
+      "id": "phase-2",
+      "name": "api-compatibility",
+      "epics": ["Epic 2"],
+      "requiredChecks": [
+        "anthropic non-stream",
+        "anthropic stream event order",
+        "openai non-stream",
+        "openai stream done marker",
+        "models/embeddings/health endpoints",
+        "provider/config discovery endpoints",
+        "agent/token diagnostics endpoints"
+      ]
+    },
+    {
+      "id": "phase-3",
+      "name": "providers-routing",
+      "epics": ["Epic 3"],
+      "requiredChecks": [
+        "provider adapters",
+        "fallback path",
+        "routing diagnostics headers"
+      ]
+    },
+    {
+      "id": "phase-4",
+      "name": "orchestration-tools",
+      "epics": ["Epic 4", "Epic 5"],
+      "requiredChecks": [
+        "agent loop completion",
+        "loop guard",
+        "server/client tool modes",
+        "client mapping layer",
+        "policy enforcement"
+      ]
+    },
+    {
+      "id": "phase-5",
+      "name": "memory-cache-optimization",
+      "epics": ["Epic 6", "Epic 8"],
+      "requiredChecks": [
+        "memory extraction/retrieval",
+        "prompt cache",
+        "semantic cache",
+        "headroom audit/optimize",
+        "ccr retrieval"
+      ]
+    },
+    {
+      "id": "phase-6",
+      "name": "hardening-observability",
+      "epics": ["Epic 7"],
+      "requiredChecks": [
+        "circuit breaker",
+        "retry behavior",
+        "load shedding",
+        "graceful shutdown",
+        "metrics and health diagnostics"
+      ]
+    },
+    {
+      "id": "phase-7",
+      "name": "integration-regression",
+      "epics": ["Epic 9"],
+      "requiredChecks": [
+        "claude integration",
+        "cursor integration",
+        "codex integration",
+        "provider matrix",
+        "performance baseline"
+      ]
+    }
+  ],
+  "artifacts": {
+    "required": [
+      "EXECUTION_LOG.md",
+      "TEST_EVIDENCE.md",
+      "PARITY_AUDIT_RESULT.md",
+      "FINAL_SIGNOFF.json"
+    ]
+  },
+  "gates": {
+    "critical": [
+      "all critical parity checklist rows pass",
+      "all FR rows have passing tests",
+      "anthropic/openai protocol compatibility pass",
+      "fallback and provider/agent/token diagnostics verified"
+    ],
+    "goCondition": "no critical failures",
+    "noGoCondition": "any critical failure"
+  },
+  "failureHandling": {
+    "workflow": [
+      "diagnose root cause",
+      "apply minimal fix",
+      "rerun failing tests",
+      "rerun epic gate",
+      "repeat up to max attempts",
+      "mark blocker with evidence and proceed with independent work"
+    ]
+  },
+  "completionOutput": {
+    "mustInclude": [
+      "status GO/NO-GO",
+      "critical pass count",
+      "blocker list",
+      "evidence file locations"
+    ]
+  }
+}
