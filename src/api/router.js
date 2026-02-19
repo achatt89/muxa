@@ -31,7 +31,7 @@ function buildCanonicalAnthropicRequest(body) {
 }
 
 function registerCoreRoutes(router, context) {
-  const { config, runtime, bootTime } = context;
+  const { config, runtime, bootTime, headroomSidecar, compressionEngine } = context;
 
   router.get('/health', ({ res }) => {
     respondJson(res, 200, {
@@ -51,7 +51,8 @@ function registerCoreRoutes(router, context) {
   });
 
   router.get('/health/headroom', ({ res }) => {
-    respondJson(res, 200, { status: 'disabled', mode: 'auto' });
+    const status = headroomSidecar?.getStatus?.() || { status: 'disabled' };
+    respondJson(res, 200, status);
   });
 
   router.get('/metrics', ({ res }) => {
@@ -75,7 +76,8 @@ function registerCoreRoutes(router, context) {
   });
 
   router.get('/metrics/compression', ({ res }) => {
-    respondJson(res, 200, { mode: 'disabled', savingsRatio: 0 });
+    const metrics = compressionEngine?.getMetrics?.() || { mode: 'audit', totalSavings: 0 };
+    respondJson(res, 200, metrics);
   });
 
   router.get('/metrics/circuit-breakers', ({ res }) => {
@@ -185,14 +187,16 @@ function registerCoreRoutes(router, context) {
   });
 
   router.get('/headroom/status', ({ res }) => {
-    respondJson(res, 200, { mode: 'disabled', healthy: true });
+    const status = headroomSidecar?.getStatus?.() || { status: 'disabled' };
+    respondJson(res, 200, status);
   });
 
   router.get('/headroom/logs', ({ res }) => {
     respondJson(res, 200, { entries: [] });
   });
 
-  router.post('/headroom/restart', ({ res }) => {
+  router.post('/headroom/restart', async ({ res }) => {
+    await headroomSidecar?.restart?.();
     respondJson(res, 202, { status: 'restarting' });
   });
 

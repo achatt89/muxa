@@ -8,13 +8,21 @@ const { createRuntimeState, recordRequest } = require('./state/runtime');
 const { registerCoreRoutes } = require('./api/router');
 const { registerOpenAIRoutes } = require('./api/openai-router');
 const { registerProviderRoutes } = require('./api/providers-handler');
+const { HeadroomSidecar } = require('./headroom/sidecar');
+const { CompressionEngine } = require('./headroom/compression');
 
-function buildRequestHandler(config) {
+function buildRequestHandler(config, integrations = {}) {
   const router = createRouter();
   const runtime = createRuntimeState();
   const bootTime = Date.now();
 
-  registerCoreRoutes(router, { config, runtime, bootTime });
+  registerCoreRoutes(router, {
+    config,
+    runtime,
+    bootTime,
+    headroomSidecar: integrations.headroomSidecar,
+    compressionEngine: integrations.compressionEngine
+  });
   registerOpenAIRoutes(router, { config, runtime });
   registerProviderRoutes(router, { config, runtime });
 
@@ -56,10 +64,15 @@ function createServer(options = {}) {
   const config = options.config || loadConfig(options.configOptions || {});
   const httpModule = options.httpModule || nodeHttp;
   const emitter = new EventEmitter();
+  const headroomSidecar = new HeadroomSidecar({
+    enabled: config.headroom.enabled,
+    mode: config.headroom.mode
+  });
+  const compressionEngine = new CompressionEngine({ mode: config.headroom.mode });
   let server;
   let started = false;
 
-  const handler = buildRequestHandler(config);
+  const handler = buildRequestHandler(config, { headroomSidecar, compressionEngine });
 
   async function start() {
     if (started) {
@@ -80,12 +93,17 @@ function createServer(options = {}) {
 
       server.once('error', onError);
 
-      server.listen(config.port, config.host, () => {
-        server.off('error', onError);
-        started = true;
-        emitter.emit('started', server.address());
-        resolve(server);
-      });
+      headroomSidecar
+        .start()
+        .catch(() => {})
+        .finally(() => {
+          server.listen(config.port, config.host, () => {
+            server.off('error', onError);
+            started = true;
+            emitter.emit('started', server.address());
+            resolve(server);
+          });
+        });
     });
   }
 

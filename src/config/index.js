@@ -115,7 +115,11 @@ function loadConfig(options = {}) {
     toolExecution: {
       mode: toolExecutionMode
     },
-    credentials: {}
+    credentials: {},
+    headroom: {
+      enabled: (env.MUXA_HEADROOM_ENABLED || '').toLowerCase() === 'true',
+      mode: env.MUXA_HEADROOM_MODE || 'audit'
+    }
   };
 
   if (REQUIRED_CREDENTIALS[primaryProvider]) {

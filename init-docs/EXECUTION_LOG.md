@@ -33,8 +33,8 @@ Runtime coordinator log for one-shot autonomous implementation. Track phase prog
 | phase-3 | providers-routing | 2026-02-19T15:08:35Z | 2026-02-19T15:19:19Z | COMPLETED | Provider adapters + routing/fallback delivered. |
 | phase-4 | orchestration-tools | 2026-02-19T15:19:19Z |  | IN_PROGRESS | Orchestrator loop, tool registry, mapping, policies underway. |
 | phase-5 | memory-cache-optimization | 2026-02-19T16:05:00Z | 2026-02-19T16:10:49Z | COMPLETED | Memory store + caches + embeddings override delivered. |
-| phase-6 | hardening-observability | 2026-02-19T16:10:49Z |  | IN_PROGRESS | Middleware/reliability/observability initiatives underway. |
-| phase-7 | integration-regression |  |  | NOT_STARTED |  |
+| phase-6 | hardening-observability | 2026-02-19T16:10:49Z | 2026-02-19T16:24:30Z | COMPLETED | Middleware/reliability/observability initiatives delivered. |
+| phase-7 | integration-regression | 2026-02-19T17:35:43Z |  | IN_PROGRESS | Headroom/sidecar integration, prep for QA gate underway. |
 
 ## Agent Assignment Log
 | Timestamp | Agent | Task IDs | Action | Result |
@@ -51,6 +51,7 @@ Runtime coordinator log for one-shot autonomous implementation. Track phase prog
 | 2026-02-19T15:19:19Z | A3 | E4-T1..E5-T3 | activated | Orchestrator/tooling work began (loop, registry, mapping, policy) |
 | 2026-02-19T16:05:00Z | A4 | E6-T1..E6-T3 + caches | activated | Memory/caching work kicked off |
 | 2026-02-19T16:10:49Z | A5 | E7-T1..E7-T3 | activated | Reliability/middleware/observability hardening underway |
+| 2026-02-19T17:30:00Z | A6 | E8-T1..E8-T2 | activated | Headroom sidecar + compression integration underway |
 
 ## Task Completion Log
 | Timestamp | Task ID | Agent | Evidence Link | Status | Notes |
@@ -77,6 +78,9 @@ Runtime coordinator log for one-shot autonomous implementation. Track phase prog
 | 2026-02-19T16:24:23Z | E7-T2 | A5 | TEST_EVIDENCE.md:18-64 | PASS | Circuit breaker/retry/graceful shutdown reliability controls implemented/tests passing. |
 | 2026-02-19T16:24:23Z | E7-T3 | A5 | TEST_EVIDENCE.md:18-64 | PASS | Observability metrics/health registries implemented/tests passing. |
 | 2026-02-19T16:24:30Z | Endpoint parity sweep | A7 | TEST_EVIDENCE.md:18-64 | PASS | Parity script reconfirmed 37/37 canonical endpoints after reliability updates. |
+| 2026-02-19T17:35:43Z | E8-T1 | A6 | TEST_EVIDENCE.md:18-68 | PASS | Headroom sidecar disabled/enabled/fail-open behaviors implemented with tests. |
+| 2026-02-19T17:35:43Z | E8-T2 | A6 | TEST_EVIDENCE.md:18-68 | PASS | Compression audit/optimize/CCR flow implemented with metrics + tests. |
+| 2026-02-19T17:35:48Z | Endpoint parity sweep | A7 | TEST_EVIDENCE.md:18-68 | PASS | Parity script reconfirmed 37/37 canonical endpoints after headroom integration. |
 | 2026-02-19T16:10:49Z | E6-T1 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Memory extraction/store/ranking/injection implemented with tests. |
 | 2026-02-19T16:10:49Z | E6-T2 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Prompt cache + semantic cache delivered with TTL/threshold tests. |
 | 2026-02-19T16:10:49Z | E6-T3 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Embeddings override implemented w/ provider selection + error handling tests. |
