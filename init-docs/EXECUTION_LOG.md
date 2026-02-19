@@ -85,6 +85,10 @@ Runtime coordinator log for one-shot autonomous implementation. Track phase prog
 | 2026-02-19T17:44:30Z | E9-T2 | A7 | TEST_EVIDENCE.md:18-72 | PASS | Provider matrix + fallback resilience integration tests executed. |
 | 2026-02-19T17:44:30Z | E9-T3 | A7 | TEST_EVIDENCE.md:18-72 | PASS | Performance smoke suites (latency/load/memory) implemented/tests passing. |
 | 2026-02-19T17:44:39Z | Endpoint parity sweep | A7 | TEST_EVIDENCE.md:18-72 | PASS | Parity script reconfirmed 37/37 canonical endpoints post-integration tests. |
+| 2026-02-19T18:23:18Z | E3-T1 | A2 | TEST_EVIDENCE.md:18-74 | PASS | Added OpenRouter + Ollama adapters with remote endpoint support. |
+| 2026-02-19T18:23:18Z | E6-T1..E6-T3 | A4 | TEST_EVIDENCE.md:18-74 | PASS | Memory store + prompt/semantic caches integrated into API flows. |
+| 2026-02-19T18:23:18Z | E8-T1..E8-T2 | A6 | TEST_EVIDENCE.md:18-74 | PASS | Headroom lifecycle + compression metrics wired to endpoints. |
+| 2026-02-19T18:23:36Z | Endpoint parity sweep | A7 | TEST_EVIDENCE.md:18-74 | PASS | Final parity sweep confirms 37/37 endpoints (wave 4). |
 | 2026-02-19T16:10:49Z | E6-T1 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Memory extraction/store/ranking/injection implemented with tests. |
 | 2026-02-19T16:10:49Z | E6-T2 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Prompt cache + semantic cache delivered with TTL/threshold tests. |
 | 2026-02-19T16:10:49Z | E6-T3 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Embeddings override implemented w/ provider selection + error handling tests. |

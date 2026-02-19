@@ -14,7 +14,7 @@ async function generateEmbedding({ text, config }) {
     model: 'embeddings',
     messages: [{ role: 'user', content: text }],
     debug: {}
-  });
+  }, config);
 
   return {
     provider,

@@ -2,7 +2,8 @@
 
 const { respondJson, writeSse, respondError } = require('../http/response');
 const { recordSessionTokenUsage, randomId } = require('../state/runtime');
-const { approximateTokensFromText } = require('./utils');
+const { approximateTokensFromText, extractTextFromMessages } = require('./utils');
+const { injectMemoriesIntoPrompt } = require('../memory/store');
 const { executeWithRouting } = require('../routing');
 const { ProviderError } = require('../providers/errors');
 
@@ -24,10 +25,58 @@ function buildCanonicalOpenAIRequest(body) {
   };
 }
 
-function registerOpenAIRoutes(router, { runtime, config }) {
+function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCache, semanticCache }) {
+  const cacheKeyFromMessages = (messages = []) => JSON.stringify(messages);
+
+  const getCachedResponse = (key, query, model) => {
+    const promptHit = promptCache?.get(key, model);
+    if (promptHit) {
+      return promptHit;
+    }
+    if (semanticCache && query) {
+      const semanticHit = semanticCache.get(query);
+      if (semanticHit) {
+        return semanticHit.response;
+      }
+    }
+    return null;
+  };
+
+  const storeCaches = (key, query, model, payload) => {
+    promptCache?.set(key, model, payload);
+    if (semanticCache && query) {
+      semanticCache.set(query, payload);
+    }
+  };
+
+  const injectMemoriesIfNeeded = (body) => {
+    if (!memoryStore || !memoryStore.retrieveTop) {
+      return { query: '' };
+    }
+    const query = Array.isArray(body.messages) ? extractTextFromMessages(body.messages) : '';
+    if (!query) {
+      return { query };
+    }
+    const memories = memoryStore.retrieveTop({ query, limit: config.optimization.memory.topK });
+    if (memories.length) {
+      const injection = injectMemoriesIntoPrompt('', memories);
+      body.messages = [{ role: 'system', content: injection }, ...(body.messages || [])];
+    }
+    return { query };
+  };
   router.post('/v1/chat/completions', async ({ res, body = {} }) => {
+    const { query } = injectMemoriesIfNeeded(body);
+    const cacheKey = cacheKeyFromMessages(body.messages || []);
     const canonical = buildCanonicalOpenAIRequest(body);
     try {
+      if (!canonical.stream) {
+        const cached = getCachedResponse(cacheKey, query, canonical.model);
+        if (cached) {
+          respondJson(res, 200, cached);
+          return;
+        }
+      }
+
       const { route, result } = await executeWithRouting({ config, canonicalRequest: canonical });
       res.setHeader('x-muxa-provider', route.provider);
       res.setHeader('x-muxa-route', route.usedFallback ? 'fallback' : 'primary');
@@ -80,7 +129,7 @@ function registerOpenAIRoutes(router, { runtime, config }) {
         return;
       }
 
-      respondJson(res, 200, {
+      const payload = {
         id: randomId('chatcmpl'),
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
@@ -96,7 +145,20 @@ function registerOpenAIRoutes(router, { runtime, config }) {
           ...usage,
           total_tokens: usage.prompt_tokens + usage.completion_tokens
         }
-      });
+      };
+
+      respondJson(res, 200, payload);
+
+      if (!canonical.stream) {
+        storeCaches(cacheKey, query, canonical.model, payload);
+      }
+      if (memoryStore && query && result.normalized.content) {
+        memoryStore.addCandidate({
+          content: `Q: ${query}\nA: ${result.normalized.content}`,
+          surprise: Math.min(1, result.normalized.content.length / 400),
+          importance: 0.5
+        });
+      }
     } catch (error) {
       if (error instanceof ProviderError) {
         respondError(res, error.statusCode, error.message, error.code, {
@@ -109,22 +171,32 @@ function registerOpenAIRoutes(router, { runtime, config }) {
   });
 
   router.post('/v1/responses', async ({ res, body = {} }) => {
+    const normalizedInput = Array.isArray(body.input)
+      ? body.input.map((item) => ({ role: item.role || 'user', content: item.content }))
+      : [];
+    const memoryPayload = { messages: normalizedInput };
+    const { query } = injectMemoriesIfNeeded(memoryPayload);
+    const cacheKey = cacheKeyFromMessages(memoryPayload.messages || []);
     const canonical = buildCanonicalOpenAIRequest({
       model: body.model,
-      messages: Array.isArray(body.input)
-        ? body.input.map((item) => ({ role: item.role || 'user', content: item.content }))
-        : [],
+      messages: memoryPayload.messages,
       stream: body.stream,
       session_id: body.session_id,
       debug: body.debug
     });
 
     try {
+      const cached = getCachedResponse(cacheKey, query, canonical.model);
+      if (cached) {
+        respondJson(res, 200, cached);
+        return;
+      }
+
       const { route, result } = await executeWithRouting({ config, canonicalRequest: canonical });
       res.setHeader('x-muxa-provider', route.provider);
       res.setHeader('x-muxa-route', route.usedFallback ? 'fallback' : 'primary');
 
-      respondJson(res, 200, {
+      const payload = {
         id: randomId('resp'),
         object: 'response',
         created: Math.floor(Date.now() / 1000),
@@ -138,7 +210,10 @@ function registerOpenAIRoutes(router, { runtime, config }) {
           }
         ],
         status: 'completed'
-      });
+      };
+
+      respondJson(res, 200, payload);
+      storeCaches(cacheKey, query, canonical.model, payload);
     } catch (error) {
       if (error instanceof ProviderError) {
         respondError(res, error.statusCode, error.message, error.code, {

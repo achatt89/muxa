@@ -11,7 +11,7 @@ test('provider errors include status and code', async () => {
   };
 
   await assert.rejects(
-    async () => invokeAdapter('openai', canonical),
+    async () => invokeAdapter('openai', canonical, {}),
     (error) => {
       assert.ok(error instanceof ProviderError);
       assert.equal(error.code, 'UPSTREAM_FAIL');

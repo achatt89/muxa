@@ -10,6 +10,9 @@ const { registerOpenAIRoutes } = require('./api/openai-router');
 const { registerProviderRoutes } = require('./api/providers-handler');
 const { HeadroomSidecar } = require('./headroom/sidecar');
 const { CompressionEngine } = require('./headroom/compression');
+const { MemoryStore } = require('./memory/store');
+const { PromptCache } = require('./cache/prompt-cache');
+const { SemanticCache } = require('./cache/semantic-cache');
 
 function buildRequestHandler(config, integrations = {}) {
   const router = createRouter();
@@ -21,9 +24,18 @@ function buildRequestHandler(config, integrations = {}) {
     runtime,
     bootTime,
     headroomSidecar: integrations.headroomSidecar,
-    compressionEngine: integrations.compressionEngine
+    compressionEngine: integrations.compressionEngine,
+    memoryStore: integrations.memoryStore,
+    promptCache: integrations.promptCache,
+    semanticCache: integrations.semanticCache
   });
-  registerOpenAIRoutes(router, { config, runtime });
+  registerOpenAIRoutes(router, {
+    config,
+    runtime,
+    memoryStore: integrations.memoryStore,
+    promptCache: integrations.promptCache,
+    semanticCache: integrations.semanticCache
+  });
   registerProviderRoutes(router, { config, runtime });
 
   return async (req, res) => {
@@ -69,10 +81,31 @@ function createServer(options = {}) {
     mode: config.headroom.mode
   });
   const compressionEngine = new CompressionEngine({ mode: config.headroom.mode });
+  const memoryStore = config.optimization.memory.enabled
+    ? new MemoryStore({
+        surpriseThreshold: config.optimization.memory.surpriseThreshold,
+        maxEntries: config.optimization.memory.maxEntries
+      })
+    : null;
+  const promptCache = config.optimization.promptCache.enabled
+    ? new PromptCache({
+        ttlMs: config.optimization.promptCache.ttlMs,
+        maxEntries: config.optimization.promptCache.maxEntries
+      })
+    : null;
+  const semanticCache = config.optimization.semanticCache.enabled
+    ? new SemanticCache({ threshold: config.optimization.semanticCache.threshold })
+    : null;
   let server;
   let started = false;
 
-  const handler = buildRequestHandler(config, { headroomSidecar, compressionEngine });
+  const handler = buildRequestHandler(config, {
+    headroomSidecar,
+    compressionEngine,
+    memoryStore,
+    promptCache,
+    semanticCache
+  });
 
   async function start() {
     if (started) {

@@ -3,6 +3,7 @@
 const { respondJson, respondError, writeSse } = require('../http/response');
 const { recordSessionTokenUsage, randomId } = require('../state/runtime');
 const { extractTextFromMessages, approximateTokensFromText } = require('./utils');
+const { injectMemoriesIntoPrompt } = require('../memory/store');
 const { executeWithRouting } = require('../routing');
 const { ProviderError } = require('../providers/errors');
 
@@ -31,7 +32,62 @@ function buildCanonicalAnthropicRequest(body) {
 }
 
 function registerCoreRoutes(router, context) {
-  const { config, runtime, bootTime, headroomSidecar, compressionEngine } = context;
+  const {
+    config,
+    runtime,
+    bootTime,
+    headroomSidecar,
+    compressionEngine,
+    memoryStore,
+    promptCache,
+    semanticCache
+  } = context;
+
+  const cacheKeyFromMessages = (messages = []) => JSON.stringify(messages);
+
+  const getCachedResponse = (key, query, model) => {
+    const promptHit = promptCache?.get(key, model);
+    if (promptHit) {
+      return promptHit;
+    }
+    if (semanticCache && query) {
+      const semanticHit = semanticCache.get(query);
+      if (semanticHit) {
+        return semanticHit.response;
+      }
+    }
+    return null;
+  };
+
+  const storeCaches = (key, query, model, payload) => {
+    promptCache?.set(key, model, payload);
+    if (semanticCache && query) {
+      semanticCache.set(query, payload);
+    }
+  };
+
+  const injectMemoriesIfNeeded = (body) => {
+    if (!memoryStore || !memoryStore.retrieveTop) {
+      return { query: '' };
+    }
+
+    const query = extractTextFromMessages(body.messages || []);
+    if (!query) {
+      return { query };
+    }
+
+    const memories = memoryStore.retrieveTop({
+      query,
+      limit: config.optimization.memory.topK
+    });
+
+    if (memories.length) {
+      const injection = injectMemoriesIntoPrompt('', memories);
+      body.messages = [{ role: 'system', content: injection }, ...(body.messages || [])];
+    }
+
+    return { query };
+  };
 
   router.get('/health', ({ res }) => {
     respondJson(res, 200, {
@@ -201,8 +257,18 @@ function registerCoreRoutes(router, context) {
   });
 
   router.post('/v1/messages', async ({ res, body = {} }) => {
+    const { query } = injectMemoriesIfNeeded(body);
+    const cacheKey = cacheKeyFromMessages(body.messages || []);
     const canonical = buildCanonicalAnthropicRequest(body);
     try {
+      if (!canonical.stream) {
+        const cached = getCachedResponse(cacheKey, query, canonical.model);
+        if (cached) {
+          respondJson(res, 200, cached.payload);
+          return;
+        }
+      }
+
       const { route, result } = await executeWithRouting({ config, canonicalRequest: canonical });
 
       res.setHeader('x-muxa-provider', route.provider);
@@ -241,7 +307,7 @@ function registerCoreRoutes(router, context) {
         return;
       }
 
-      respondJson(res, 200, {
+      const payload = {
         id: randomId('msg'),
         type: 'message',
         role: 'assistant',
@@ -249,7 +315,21 @@ function registerCoreRoutes(router, context) {
         content: [{ type: 'text', text: responseText }],
         usage,
         stop_reason: stopReason
-      });
+      };
+
+      respondJson(res, 200, payload);
+
+      if (!canonical.stream) {
+        storeCaches(cacheKey, query, canonical.model, payload);
+      }
+
+      if (memoryStore && query && responseText) {
+        memoryStore.addCandidate({
+          content: `Q: ${query}\nA: ${responseText}`,
+          surprise: Math.min(1, responseText.length / 400),
+          importance: 0.5
+        });
+      }
     } catch (error) {
       if (error instanceof ProviderError) {
         respondError(res, error.statusCode, error.message, error.code, {

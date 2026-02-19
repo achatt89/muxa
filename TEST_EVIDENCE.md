@@ -34,6 +34,8 @@ Centralized evidence of all test executions for one-shot implementation. Each en
 | 2026-02-19T17:35:48Z | Phase-2/8 parity sweep | FR-3, FR-10, FR-24 | `node scripts/endpoint-parity-preflight.js` | `scripts/endpoint-parity-preflight.js` | PASS | 37/37 canonical endpoints detected post-headroom integration |
 | 2026-02-19T17:44:30Z | E9-T1..E9-T3 | FR-13, FR-22, FR-23 | `npm test` | `test/integration/*.test.js`, `test/performance/*.test.js`, existing suites | PASS | 74-test suite with client/provider/perf integration coverage |
 | 2026-02-19T17:44:39Z | Phase-2/9 parity sweep | FR-3, FR-10, FR-24 | `node scripts/endpoint-parity-preflight.js` | `scripts/endpoint-parity-preflight.js` | PASS | 37/37 canonical endpoints detected after integration tests |
+| 2026-02-19T18:23:18Z | Provider expansion + caching integration | FR-4, FR-5, FR-6, FR-7, FR-8 | `npm test` | Entire suite (91 tests) including new provider adapters, caching/memory/headroom integration | PASS | Validates OpenRouter/Ollama adapters, caches, memory injection, headroom ops |
+| 2026-02-19T18:23:36Z | Final parity sweep | FR-3, FR-10, FR-24 | `node scripts/endpoint-parity-preflight.js` | `scripts/endpoint-parity-preflight.js` | PASS | 37/37 canonical endpoints detected (wave 4) |
 
 ## Epic Gates
 ### Epic 1

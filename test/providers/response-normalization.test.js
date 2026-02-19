@@ -8,7 +8,7 @@ test('anthropic adapter normalizes usage into expected fields', async () => {
     messages: [{ role: 'user', content: [{ type: 'text', text: 'ping' }] }]
   };
 
-  const result = await invokeAdapter('anthropic', canonical);
+  const result = await invokeAdapter('anthropic', canonical, {});
 
   const usage = result.normalized.usage;
   assert.ok(typeof usage.input_tokens === 'number');

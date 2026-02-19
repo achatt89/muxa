@@ -40,7 +40,7 @@ async function executeWithRouting({ config, canonicalRequest }) {
 
   async function attempt(providerName, isFallback = false) {
     metadata.attempts.push({ provider: providerName, fallback: isFallback });
-    return invokeAdapter(providerName, canonicalRequest);
+    return invokeAdapter(providerName, canonicalRequest, config);
   }
 
   const primaryRoute = selectRoute({ config, canonicalRequest });

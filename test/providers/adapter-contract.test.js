@@ -11,7 +11,7 @@ test('provider adapters translate canonical requests', async () => {
     ]
   };
 
-  const result = await invokeAdapter('openai', canonical);
+  const result = await invokeAdapter('openai', canonical, {});
 
   assert.equal(result.provider, 'openai');
   assert.ok(result.payload.prompt.includes('Hello'));

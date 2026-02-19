@@ -2,6 +2,14 @@ const { SUPPORTED_PROVIDERS, LOCAL_PROVIDERS, REQUIRED_CREDENTIALS, TOOL_EXECUTI
 const { ConfigError } = require('./errors');
 const pkg = require('../../package.json');
 
+function parseBoolean(value, defaultValue = false) {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+  const normalized = String(value).toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes';
+}
+
 function normalizeProvider(value, defaultValue = 'mock') {
   if (!value) {
     return defaultValue;
@@ -116,8 +124,34 @@ function loadConfig(options = {}) {
       mode: toolExecutionMode
     },
     credentials: {},
+    providers: {
+      openrouter: {
+        baseUrl: env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+        apiKey: env.OPENROUTER_API_KEY || null
+      },
+      ollama: {
+        baseUrl: env.OLLAMA_BASE_URL || 'http://localhost:11434'
+      }
+    },
+    optimization: {
+      promptCache: {
+        enabled: parseBoolean(env.MUXA_PROMPT_CACHE_ENABLED, true),
+        ttlMs: Number(env.MUXA_PROMPT_CACHE_TTL_MS || 60000),
+        maxEntries: Number(env.MUXA_PROMPT_CACHE_MAX || 200)
+      },
+      semanticCache: {
+        enabled: parseBoolean(env.MUXA_SEMANTIC_CACHE_ENABLED, false),
+        threshold: Number(env.MUXA_SEMANTIC_CACHE_THRESHOLD || 0.85)
+      },
+      memory: {
+        enabled: parseBoolean(env.MUXA_MEMORY_ENABLED, true),
+        surpriseThreshold: Number(env.MUXA_MEMORY_SURPRISE_THRESHOLD || 0.6),
+        maxEntries: Number(env.MUXA_MEMORY_MAX || 200),
+        topK: Number(env.MUXA_MEMORY_TOPK || 3)
+      }
+    },
     headroom: {
-      enabled: (env.MUXA_HEADROOM_ENABLED || '').toLowerCase() === 'true',
+      enabled: parseBoolean(env.MUXA_HEADROOM_ENABLED, false),
       mode: env.MUXA_HEADROOM_MODE || 'audit'
     }
   };
