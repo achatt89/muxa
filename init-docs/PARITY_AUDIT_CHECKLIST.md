@@ -98,7 +98,7 @@ Purpose: Final pass checklist to verify full feature parity (MVP + non-MVP) when
 - [ ] Fail-open behavior works if sidecar unavailable.
 - [ ] Audit mode vs optimize mode behaviors validated.
 - [ ] CCR retrieval flow validated.
-- [ ] Headroom ops endpoints (`/health/headroom`, `/headroom/*`, `/metrics/compression`) validated.
+- [x] Headroom ops endpoints (`/health/headroom`, `/headroom/*`, `/metrics/compression`) validated. *(Tests: test/api/diagnostics-endpoints, test/headroom/*.test.js)*
 
 ## 8) Reliability & Safety Gate (Critical)
 - [ ] **Critical** Circuit breaker transitions `CLOSED -> OPEN -> HALF_OPEN -> CLOSED` validated.

@@ -1,12 +1,20 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { request } = require('../helpers/http');
 
-const requiredTests = [
-  'test/api/anthropic-messages.test.js',
-  'test/api/anthropic-streaming.test.js',
-  'test/api/anthropic-tools.test.js'
-];
+test('Claude CLI flow: /v1/messages responds with routing metadata', async () => {
+  const res = await request({
+    method: 'POST',
+    path: '/v1/messages',
+    body: {
+      messages: [{ role: 'user', content: 'hello from claude' }]
+    }
+  });
 
-test('claude cli integration prerequisites executed', () => {
-  assert.ok(requiredTests.every((_) => true));
+  assert.equal(res.statusCode, 200);
+  assert.ok(res.headers['x-muxa-provider']);
+
+  const payload = JSON.parse(res.body);
+  assert.equal(payload.type, 'message');
+  assert.equal(payload.role, 'assistant');
 });

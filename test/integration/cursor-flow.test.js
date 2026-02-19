@@ -1,13 +1,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { request } = require('../helpers/http');
 
-const requiredTests = [
-  'test/api/openai-chat.test.js',
-  'test/api/openai-models.test.js',
-  'test/api/openai-embeddings.test.js',
-  'test/api/openai-health.test.js'
-];
+test('Cursor flow: /v1/chat/completions returns choices', async () => {
+  const res = await request({
+    method: 'POST',
+    path: '/v1/chat/completions',
+    body: {
+      messages: [{ role: 'user', content: 'summarize muxa proxy' }]
+    }
+  });
 
-test('cursor integration prerequisites executed', () => {
-  assert.ok(requiredTests.every((_) => true));
+  assert.equal(res.statusCode, 200);
+  const payload = JSON.parse(res.body);
+  assert.ok(Array.isArray(payload.choices));
+  assert.equal(payload.choices[0].message.role, 'assistant');
 });
