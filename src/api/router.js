@@ -242,6 +242,74 @@ function registerCoreRoutes(router, context) {
     });
   });
 
+  router.get('/dashboard', ({ res }) => {
+    const html = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Muxa Dashboard</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 20px; background:#0f172a; color:#f1f5f9; }
+      h1 { margin-top:0; }
+      section { border:1px solid #1e293b; padding:16px; border-radius:8px; margin-bottom:16px; background:#111c35; }
+      pre { background:#0a1428; padding:12px; border-radius:6px; overflow:auto; }
+      .status-ok { color:#22c55e; }
+      .status-bad { color:#ef4444; }
+    </style>
+  </head>
+  <body>
+    <h1>Muxa Diagnostics</h1>
+    <section>
+      <h2>Health</h2>
+      <div id="health">Loading...</div>
+    </section>
+    <section>
+      <h2>Metrics</h2>
+      <pre id="metrics">Loading...</pre>
+    </section>
+    <section>
+      <h2>Compression</h2>
+      <pre id="compression">Loading...</pre>
+    </section>
+    <section>
+      <h2>Routing</h2>
+      <pre id="routing">Loading...</pre>
+    </section>
+    <section>
+      <h2>Headroom</h2>
+      <pre id="headroom">Loading...</pre>
+    </section>
+    <script>
+      async function refresh() {
+        try {
+          const [health, metrics, compression, routing, headroom] = await Promise.all([
+            fetch('/health/ready').then((r) => r.json()),
+            fetch('/metrics').then((r) => r.json()),
+            fetch('/metrics/compression').then((r) => r.json()),
+            fetch('/routing/stats').then((r) => r.json()),
+            fetch('/headroom/status').then((r) => r.json())
+          ]);
+          document.getElementById('health').textContent =
+            health.status === 'ready'
+              ? 'Ready ✔️'
+              : 'Check readiness endpoint';
+          document.getElementById('metrics').textContent = JSON.stringify(metrics, null, 2);
+          document.getElementById('compression').textContent = JSON.stringify(compression, null, 2);
+          document.getElementById('routing').textContent = JSON.stringify(routing, null, 2);
+          document.getElementById('headroom').textContent = JSON.stringify(headroom, null, 2);
+        } catch (error) {
+          document.getElementById('health').textContent = 'Error fetching diagnostics: ' + error.message;
+        }
+      }
+      refresh();
+      setInterval(refresh, 5000);
+    </script>
+  </body>
+</html>`;
+    res.setHeader('content-type', 'text/html; charset=utf-8');
+    res.end(html);
+  });
+
   router.get('/headroom/status', ({ res }) => {
     const status = headroomSidecar?.getStatus?.() || { status: 'disabled' };
     respondJson(res, 200, status);

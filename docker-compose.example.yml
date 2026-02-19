@@ -1,0 +1,18 @@
+version: "3.9"
+services:
+  muxa:
+    build: .
+    ports:
+      - "8081:8081"
+    environment:
+      OPENAI_API_KEY: "sk-your-key"
+      MUXA_PRIMARY_PROVIDER: "openai"
+      MUXA_HEADROOM_ENABLED: "true"
+    depends_on:
+      - ollama
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama-data:/root/.ollama
