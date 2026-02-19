@@ -32,8 +32,8 @@ Runtime coordinator log for one-shot autonomous implementation. Track phase prog
 | phase-2 | api-compatibility | 2026-02-19T15:04:30Z | 2026-02-19T15:08:35Z | COMPLETED | Anthropic/OpenAI endpoints + diagnostics implemented with parity evidence. |
 | phase-3 | providers-routing | 2026-02-19T15:08:35Z | 2026-02-19T15:19:19Z | COMPLETED | Provider adapters + routing/fallback delivered. |
 | phase-4 | orchestration-tools | 2026-02-19T15:19:19Z |  | IN_PROGRESS | Orchestrator loop, tool registry, mapping, policies underway. |
-| phase-5 | memory-cache-optimization |  |  | NOT_STARTED |  |
-| phase-6 | hardening-observability |  |  | NOT_STARTED |  |
+| phase-5 | memory-cache-optimization | 2026-02-19T16:05:00Z | 2026-02-19T16:10:49Z | COMPLETED | Memory store + caches + embeddings override delivered. |
+| phase-6 | hardening-observability | 2026-02-19T16:10:49Z |  | IN_PROGRESS | Middleware/reliability/observability initiatives underway. |
 | phase-7 | integration-regression |  |  | NOT_STARTED |  |
 
 ## Agent Assignment Log
@@ -49,6 +49,8 @@ Runtime coordinator log for one-shot autonomous implementation. Track phase prog
 | 2026-02-19T15:04:30Z | A1 | E2-T1..E2-T4 | activated | Working under coordinator until Epic 2 completion |
 | 2026-02-19T15:08:35Z | A2 | E3-T1..E3-T2 | activated | Provider/routing tasks underway |
 | 2026-02-19T15:19:19Z | A3 | E4-T1..E5-T3 | activated | Orchestrator/tooling work began (loop, registry, mapping, policy) |
+| 2026-02-19T16:05:00Z | A4 | E6-T1..E6-T3 + caches | activated | Memory/caching work kicked off |
+| 2026-02-19T16:10:49Z | A5 | E7-T1..E7-T3 | activated | Reliability/middleware/observability hardening underway |
 
 ## Task Completion Log
 | Timestamp | Task ID | Agent | Evidence Link | Status | Notes |
@@ -68,6 +70,16 @@ Runtime coordinator log for one-shot autonomous implementation. Track phase prog
 | 2026-02-19T15:36:33Z | Endpoint parity sweep | A7 | TEST_EVIDENCE.md:18-54 | PASS | Parity script reconfirmed 37/37 canonical endpoints after tooling/policy updates. |
 | 2026-02-19T15:45:47Z | E5-T2 | A3 | TEST_EVIDENCE.md:18-54 | PASS | Client mapping layer implemented as reusable package with Codex/Cline/Continue coverage. |
 | 2026-02-19T15:45:47Z | E5-T3 | A3 | TEST_EVIDENCE.md:18-54 | PASS | Policy controls for workspace/web/git/test enforcement implemented + tested. |
+| 2026-02-19T16:10:49Z | E6-T1 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Memory store/extraction/ranking implemented with injection helpers + tests. |
+| 2026-02-19T16:10:49Z | E6-T2 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Prompt + semantic caches implemented with TTL/threshold tests. |
+| 2026-02-19T16:10:49Z | E6-T3 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Embeddings override implemented with provider selection + error handling tests. |
+| 2026-02-19T16:24:23Z | E7-T1 | A5 | TEST_EVIDENCE.md:18-64 | PASS | Middleware stack (order/load shedding/logging) implemented/tests passing. |
+| 2026-02-19T16:24:23Z | E7-T2 | A5 | TEST_EVIDENCE.md:18-64 | PASS | Circuit breaker/retry/graceful shutdown reliability controls implemented/tests passing. |
+| 2026-02-19T16:24:23Z | E7-T3 | A5 | TEST_EVIDENCE.md:18-64 | PASS | Observability metrics/health registries implemented/tests passing. |
+| 2026-02-19T16:24:30Z | Endpoint parity sweep | A7 | TEST_EVIDENCE.md:18-64 | PASS | Parity script reconfirmed 37/37 canonical endpoints after reliability updates. |
+| 2026-02-19T16:10:49Z | E6-T1 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Memory extraction/store/ranking/injection implemented with tests. |
+| 2026-02-19T16:10:49Z | E6-T2 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Prompt cache + semantic cache delivered with TTL/threshold tests. |
+| 2026-02-19T16:10:49Z | E6-T3 | A4 | TEST_EVIDENCE.md:18-60 | PASS | Embeddings override implemented w/ provider selection + error handling tests. |
 
 ## Remediation Attempts (Auto-Heal)
 | Timestamp | Failure Ref | Attempt # | Fix Applied | Test Re-run | Outcome |

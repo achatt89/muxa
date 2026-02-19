@@ -7,8 +7,8 @@ Date: 2026-02-19
 Centralized evidence of all test executions for one-shot implementation. Each entry must map to backlog task IDs and FR rows.
 
 ## Evidence Summary
-- Total tests executed: 10
-- Total passed: 9
+- Total tests executed: 13
+- Total passed: 12
 - Total failed: 1
 - Critical failures: 0 (previous diagnostics parity miss resolved at 15:08Z)
 
@@ -27,6 +27,9 @@ Centralized evidence of all test executions for one-shot implementation. Each en
 | 2026-02-19T15:34:59Z | Phase-2/3 parity sweep | FR-3, FR-10, FR-24 | `node scripts/endpoint-parity-preflight.js` | `scripts/endpoint-parity-preflight.js` | PASS | 37/37 canonical endpoints detected (post-tooling) |
 | 2026-02-19T15:45:47Z | E5-T2..E5-T3 | FR-5, FR-8 | `npm test` | `test/client-mapping/*.test.js`, `test/policy/*.test.js`, existing suites | PASS | 57-test suite including client mapping + policy enforcement |
 | 2026-02-19T15:36:33Z | Phase-2/3 parity sweep | FR-3, FR-10, FR-24 | `node scripts/endpoint-parity-preflight.js` | `scripts/endpoint-parity-preflight.js` | PASS | 37/37 canonical endpoints detected (post-policy/mapping) |
+| 2026-02-19T16:10:49Z | E6-T1..E6-T3 + caches | FR-5, FR-6, FR-7, FR-8, FR-9 | `npm test` | `test/memory/*.test.js`, `test/cache/*.test.js`, `test/embeddings/*.test.js`, existing suites | PASS | 66-test suite covering memory pipeline, prompt/semantic cache, embeddings override |
+| 2026-02-19T16:24:23Z | E7-T1..E7-T3 | FR-2, FR-10, FR-12 | `npm test` | `test/middleware/*.test.js`, `test/reliability/*.test.js`, `test/observability/*.test.js`, existing suites | PASS | 74-test suite covering middleware order, load shedding, retry, circuit breaker, metrics/health |
+| 2026-02-19T16:24:30Z | Phase-2/7 parity sweep | FR-3, FR-10, FR-24 | `node scripts/endpoint-parity-preflight.js` | `scripts/endpoint-parity-preflight.js` | PASS | 37/37 canonical endpoints detected after reliability/observability additions |
 
 ## Epic Gates
 ### Epic 1
@@ -50,12 +53,12 @@ Centralized evidence of all test executions for one-shot implementation. Each en
 - Evidence: `npm test` rows dated 2026-02-19T15:34:59Z and 2026-02-19T15:45:47Z
 
 ### Epic 6
-- Gate status:
-- Evidence:
+- Gate status: IN_PROGRESS (memory pipeline + caches + embeddings override implemented/tests passing)
+- Evidence: `npm test` row dated 2026-02-19T16:10:49Z
 
 ### Epic 7
-- Gate status:
-- Evidence:
+- Gate status: IN_PROGRESS (middleware, reliability controls, observability endpoints implemented/tests passing)
+- Evidence: `npm test` row dated 2026-02-19T16:24:23Z
 
 ### Epic 8
 - Gate status:
