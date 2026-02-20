@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Muxa Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/dashboard/app.css" />
+    <script src="/dashboard/app.js" defer></script>
+  </head>
+  <body>
+    <header class="hero">
+      <div>
+        <h1>Muxa Control Center</h1>
+        <p>Universal proxy health, routing, and optimization status</p>
+      </div>
+      <div class="hero-meta">
+        <span>Last refresh: <strong id="last-refresh">–</strong></span>
+        <button class="btn" id="refresh-btn">Refresh</button>
+      </div>
+    </header>
+    <main>
+      <section class="grid" id="summary-cards">
+        <article class="card summary-card">
+          <div class="label">Total Requests</div>
+          <div class="value" id="summary-requests">0</div>
+        </article>
+        <article class="card summary-card">
+          <div class="label">Tracked Routes</div>
+          <div class="value" id="summary-routes">0</div>
+        </article>
+        <article class="card summary-card">
+          <div class="label">Headroom</div>
+          <div class="value" id="summary-headroom">Disabled</div>
+        </article>
+        <article class="card summary-card">
+          <div class="label">Compression Savings</div>
+          <div class="value" id="summary-savings">$0</div>
+        </article>
+      </section>
+
+      <section class="row">
+        <article class="card">
+          <div class="card-header">
+            <h2>Routing Strategy</h2>
+            <span class="pill" id="routing-mode">single</span>
+          </div>
+          <p class="muted" id="routing-providers"></p>
+          <div class="log" id="routing-log">No routing samples yet.</div>
+        </article>
+        <article class="card">
+          <div class="card-header">
+            <h2>Token Usage</h2>
+          </div>
+          <table>
+            <tbody>
+              <tr>
+                <th>Input Tokens</th>
+                <td id="tokens-input">0</td>
+              </tr>
+              <tr>
+                <th>Output Tokens</th>
+                <td id="tokens-output">0</td>
+              </tr>
+              <tr>
+                <th>Usage Ratio</th>
+                <td id="tokens-ratio">0</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="muted" style="margin-top:12px;">Aggregate of tracked sessions (refreshes automatically).</p>
+        </article>
+      </section>
+
+      <section class="row">
+        <article class="card">
+          <h2>Requests per Route</h2>
+          <table id="route-table">
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th class="muted">Requests</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </article>
+        <article class="card">
+          <h2>Raw Metrics</h2>
+          <pre class="log" id="raw-metrics">Loading…</pre>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
