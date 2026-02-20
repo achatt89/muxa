@@ -1,3 +1,9 @@
+---
+layout: default
+title: Overview
+nav_order: 1
+---
+
 # Muxa Documentation
 
 ## Summary

@@ -1,3 +1,9 @@
+---
+layout: default
+title: Embeddings
+nav_order: 5
+---
+
 # Embeddings & Semantic Cache
 
 Muxa supports multiple embedding backends so clients like Cursor/Codex can run `@Codebase` searches through the proxy.

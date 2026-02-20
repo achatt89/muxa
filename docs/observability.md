@@ -1,3 +1,9 @@
+---
+layout: default
+title: Observability
+nav_order: 4
+---
+
 # Observability & Diagnostics
 
 ## Dashboard

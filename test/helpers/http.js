@@ -1,6 +1,7 @@
 const { Readable, Writable } = require('node:stream');
 const { buildRequestHandler } = require('../../src/server');
 const { loadConfig } = require('../../src/config');
+const { ensureMockOpenAI } = require('./mock-openai');
 
 function createMockRequest({ method, path, body, headers }) {
   const stream = new Readable({
@@ -60,6 +61,7 @@ class MockResponse extends Writable {
 }
 
 async function request(options) {
+  ensureMockOpenAI();
   const config = loadConfig(
     options.configOptions || {
       overrides: {

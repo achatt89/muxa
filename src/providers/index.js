@@ -3,10 +3,19 @@ const { MockAnthropicAdapter } = require('./adapters/mock-anthropic');
 const { MockLocalAdapter } = require('./adapters/mock-local');
 const { OpenRouterAdapter } = require('./adapters/openrouter');
 const { OllamaAdapter } = require('./adapters/ollama');
+const { OpenAIAdapter } = require('./adapters/openai');
 const { ProviderError } = require('./errors');
 
 const adapterFactories = new Map([
-  ['openai', () => new MockOpenAIAdapter()],
+  [
+    'openai',
+    (config) => {
+      if (config?.providers?.openai?.apiKey) {
+        return new OpenAIAdapter(config.providers.openai);
+      }
+      return new MockOpenAIAdapter();
+    }
+  ],
   ['anthropic', () => new MockAnthropicAdapter()],
   ['mock', () => new MockLocalAdapter()],
   ['mock-local', () => new MockLocalAdapter()],

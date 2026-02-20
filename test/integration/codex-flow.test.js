@@ -12,6 +12,7 @@ test('Codex flow: /v1/responses returns response object', async () => {
   });
 
   assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['content-type'], 'application/json');
   const payload = JSON.parse(res.body);
   assert.equal(payload.object, 'response');
   assert.equal(payload.status, 'completed');

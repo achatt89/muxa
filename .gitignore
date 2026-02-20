@@ -1,0 +1,13 @@
+node_modules
+.env
+.env.*
+dist
+build
+.DS_Store
+logs
+npm-debug.log*
+*.lock
+docker-compose.override.yml
+.idea
+.vscode
+coverage

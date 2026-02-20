@@ -1,3 +1,9 @@
+---
+layout: default
+title: Providers
+nav_order: 3
+---
+
 # Providers
 
 ## OpenRouter

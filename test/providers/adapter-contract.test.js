@@ -1,8 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { invokeAdapter } = require('../../src/providers');
+const { ensureMockOpenAI } = require('../helpers/mock-openai');
 
 test('provider adapters translate canonical requests', async () => {
+  ensureMockOpenAI();
   const canonical = {
     model: 'gpt-4',
     messages: [
@@ -11,10 +13,13 @@ test('provider adapters translate canonical requests', async () => {
     ]
   };
 
-  const result = await invokeAdapter('openai', canonical, {});
+  const result = await invokeAdapter('openai', canonical, {
+    providers: {
+      openai: { apiKey: 'sk-test', baseUrl: 'https://api.openai.com/v1' }
+    }
+  });
 
   assert.equal(result.provider, 'openai');
-  assert.ok(result.payload.prompt.includes('Hello'));
   assert.equal(result.normalized.finishReason, 'stop');
-  assert.match(result.normalized.content, /OpenAI mock/);
+  assert.equal(result.normalized.content, 'mock-openai response');
 });

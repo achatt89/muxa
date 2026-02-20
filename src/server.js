@@ -14,6 +14,14 @@ const { MemoryStore } = require('./memory/store');
 const { PromptCache } = require('./cache/prompt-cache');
 const { SemanticCache } = require('./cache/semantic-cache');
 
+const shouldLogRequests = /^true|1|yes$/i.test(process.env.MUXA_LOG_RESPONSES || '');
+
+function logRequest(tag, payload) {
+  if (shouldLogRequests) {
+    console.log(`[muxa:${tag}]`, payload);
+  }
+}
+
 function buildRequestHandler(config, integrations = {}) {
   const router = createRouter();
   const runtime = createRuntimeState();
@@ -40,6 +48,15 @@ function buildRequestHandler(config, integrations = {}) {
 
   return async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    if (shouldLogRequests) {
+      logRequest('request', {
+        method: req.method,
+        path: url.pathname,
+        query: url.search,
+        headers: req.headers
+      });
+    }
+
     const match = router.match(req.method, url.pathname);
 
     if (!match) {

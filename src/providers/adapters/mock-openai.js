@@ -8,6 +8,23 @@ function approximateTokens(text) {
   return Math.max(1, Math.ceil(text.length / 4));
 }
 
+function stringifyContent(content) {
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content.map((item) => stringifyContent(item)).join(' ');
+  }
+  if (content && typeof content === 'object') {
+    try {
+      return JSON.stringify(content);
+    } catch {
+      return String(content);
+    }
+  }
+  return content ?? '';
+}
+
 class MockOpenAIAdapter extends ProviderAdapter {
   constructor() {
     super('openai', { type: 'cloud' });
@@ -15,7 +32,7 @@ class MockOpenAIAdapter extends ProviderAdapter {
 
   translateRequest(canonical) {
     const prompt = (canonical.messages || [])
-      .map((msg) => `[${msg.role}] ${msg.content || ''}`)
+      .map((msg) => `[${msg.role}] ${stringifyContent(msg.content)}`)
       .join('\n');
 
     return {

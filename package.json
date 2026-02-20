@@ -7,9 +7,9 @@
     "muxa": "bin/muxa.js"
   },
   "scripts": {
-    "start": "node bin/muxa.js",
+    "start": "dotenv -e .env -- node bin/muxa.js",
     "dev": "nodemon --config nodemon.json",
-    "test": "node --test",
+    "test": "node --test \"test/**/*.test.js\"",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "format": "prettier --write .",
@@ -20,6 +20,7 @@
     "node": ">=22"
   },
   "devDependencies": {
+    "dotenv-cli": "^11.0.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",

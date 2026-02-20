@@ -1,6 +1,15 @@
 const { SUPPORTED_PROVIDERS, LOCAL_PROVIDERS, REQUIRED_CREDENTIALS, TOOL_EXECUTION_MODES, ROUTING_STRATEGIES } = require('./constants');
 const { ConfigError } = require('./errors');
 const pkg = require('../../package.json');
+const DEFAULT_OPENAI_MODEL_ALIASES = {
+  'gpt-5.3-codex': 'gpt-4o-mini',
+  'gpt-5.1-codex': 'gpt-4o',
+  'gpt-5.1': 'gpt-4o',
+  'gpt-4.1': 'gpt-4o',
+  'gpt-4.1-mini': 'gpt-4o-mini',
+  'gpt-4.1-nano': 'gpt-4o-mini'
+};
+const DEFAULT_OPENAI_MODEL_FALLBACKS = ['gpt-5.2-codex', 'gpt-5.2', 'gpt-4.1', 'gpt-4o', 'gpt-4o-mini'];
 
 function parseBoolean(value, defaultValue = false) {
   if (value === undefined || value === null || value === '') {
@@ -125,6 +134,20 @@ function loadConfig(options = {}) {
     },
     credentials: {},
     providers: {
+      openai: {
+        apiKey: env.OPENAI_API_KEY || null,
+        baseUrl: env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+        organization: env.OPENAI_ORGANIZATION || env.OPENAI_ORG || null,
+        model: env.OPENAI_MODEL || 'gpt-4o-mini',
+        modelAliases: {
+          ...DEFAULT_OPENAI_MODEL_ALIASES,
+          ...parseModelAliases(env.OPENAI_MODEL_ALIASES)
+        },
+        fallbackModels: (() => {
+          const parsed = parseList(env.OPENAI_MODEL_FALLBACKS);
+          return parsed.length ? parsed : DEFAULT_OPENAI_MODEL_FALLBACKS;
+        })()
+      },
       openrouter: {
         baseUrl: env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
         apiKey: env.OPENROUTER_API_KEY || null
@@ -177,3 +200,30 @@ module.exports = {
     ROUTING_STRATEGIES
   }
 };
+
+function parseList(value) {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function parseModelAliases(raw) {
+  if (!raw) {
+    return {};
+  }
+  return raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .reduce((acc, pair) => {
+      const [from, to] = pair.split(':').map((part) => part?.trim()).filter(Boolean);
+      if (from && to) {
+        acc[from] = to;
+      }
+      return acc;
+    }, {});
+}

@@ -39,17 +39,22 @@ brew install muxa
 muxa --help
 ```
 
-## Multi-Provider + Fallback Example
-Edit `.env` (or Docker env vars) to mix providers:
+## Multi-Provider Routing Modes
+
+| Mode | Description |
+|------|-------------|
+| `single` | All requests go to `MUXA_PRIMARY_PROVIDER`. Use this when you only want one provider. |
+| `hybrid` | Muxa evaluates request “complexity” (prompt length, tool use, etc.) and routes high-cost calls to `MUXA_FALLBACK_PROVIDER`. If the primary fails, the fallback is also used. |
+
+Example `.env`:
 ```ini
+MUXA_ROUTING_STRATEGY=hybrid
 MUXA_PRIMARY_PROVIDER=openrouter
 MUXA_FALLBACK_PROVIDER=anthropic
-MUXA_ROUTING_STRATEGY=hybrid
 OPENROUTER_API_KEY=sk-or-...
 ANTHROPIC_API_KEY=sk-ant-...
 ```
-- Requests with high complexity/tool use automatically route to the fallback provider.
-- Add local providers: set `MUXA_PRIMARY_PROVIDER=ollama` and `OLLAMA_BASE_URL=http://gpu-server:11434`.
+Use `single` mode if you don’t need fallback.
 
 ## Token Optimization & Memory
 Enable caches and memory to cut token usage:
@@ -88,12 +93,11 @@ Variable descriptions:
 
 | Client | Configuration |
 |--------|---------------|
-| Claude Code CLI | `export ANTHROPIC_BASE_URL=http://localhost:8081`, `export ANTHROPIC_API_KEY=dummy`, run `claude "Prompt"`. |
+| Claude Code CLI | `ANTHROPIC_BASE_URL=http://localhost:8081 ANTHROPIC_API_KEY=sk-muxa claude "Prompt"` (or export those vars once before running). |
 | Cursor IDE | Settings → **Features → Models** → Base URL `http://localhost:8081/v1`, API key `sk-muxa`, select the model configured in `.env`. For `@Codebase`, enable embeddings [docs/embeddings.md](docs/embeddings.md). |
-| OpenAI Codex CLI | `export OPENAI_BASE_URL=http://localhost:8081/v1`, `export OPENAI_API_KEY=dummy`, run `codex` (or add a `model_providers.muxa` entry in `~/.codex/config.toml`). |
+| OpenAI Codex CLI | `codex -c model_provider='"muxa"' -c model='"gpt-5.2-codex"' -c 'model_providers.muxa={name="Muxa Proxy",base_url="http://localhost:8081/v1",wire_api="responses",api_key="sk-muxa"}'` (no config change needed). |
 | GitHub Copilot | `export GITHUB_COPILOT_PROXY_URL=http://localhost:8081/v1`, `export GITHUB_COPILOT_PROXY_KEY=dummy`, restart the editor (Works for VS Code / JetBrains). |
-| Cline / Continue / ClawdBot / other OpenAI-compatible tools | Set their custom OpenAI endpoint to `http://localhost:8081/v1` with API key `sk-muxa` and use your desired model name. |
-
+| Cline / Continue / ClawdBot / other OpenAI-compatible tools | Set their custom OpenAI endpoint to `http://localhost:8081/v1` with API key `sk-muxa` and use your desired model name. 
 ## Observability & Diagnostics
 - `/dashboard` – lightweight HTML dashboard showing health, metrics, routing, compression, and headroom status (auto-refreshing)
 - `/health`, `/health/live`, `/health/ready` – readiness probes
