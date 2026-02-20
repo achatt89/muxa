@@ -105,6 +105,17 @@ Variable descriptions:
 - `/metrics`, `/metrics/prometheus`, `/metrics/compression`, `/metrics/semantic-cache` – Prometheus-ready metrics, headroom/semantic cache stats
 - `/health/headroom`, `/headroom/status`, `/headroom/restart`, `/headroom/logs` – headroom lifecycle
 
+## Cost Optimization & Multi-Model Strategy
+
+Muxa’s proxy lives between every IDE and the upstream provider, so optimization happens once and benefits everything:
+
+1. **Caching chain** – Prompt cache handles exact repeat prompts instantly; semantic cache (with embeddings) reuses near-duplicates; the memory store injects curated snippets for long-running projects.
+2. **Headroom compression** – Enable `MUXA_HEADROOM_ENABLED=true` to shrink chat histories and reduce token spend while keeping context intact—inspect savings via `/metrics/compression`.
+3. **Hybrid routing** – Set `MUXA_ROUTING_STRATEGY=hybrid` with a fallback provider to auto-route tool-heavy or long prompts to a premium model while keeping cheap models for short requests. Model aliases/fallbacks map IDE-only IDs (e.g., `gpt-5.3-codex`) to real upstream SKUs without touching editor config.
+4. **Instrumentation loop** – `/api/tokens/stats`, `/metrics/semantic-cache`, `/routing/stats`, and the dashboard show exactly when caches hit or fallback routing triggers so you can prove savings to the team.
+
+Best results happen when you warm caches (replay tests or common prompts), keep `session_id`/`user` identifiers consistent, and leave the proxy running for a day or two so semantic cache + headroom gather enough data. See [docs/cost-optimization.md](docs/cost-optimization.md) for the full playbook, configuration examples, timelines, and troubleshooting tips.
+
 ## Embeddings & @Codebase Support
 See [docs/embeddings.md](docs/embeddings.md) for Ollama, llama.cpp, OpenRouter, and OpenAI embeddings configuration. Example (Ollama):
 ```bash

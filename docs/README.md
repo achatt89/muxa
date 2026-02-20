@@ -11,3 +11,4 @@ nav_order: 1
 - [Providers](providers.md)
 - [Observability](observability.md)
 - [Embeddings](embeddings.md)
+- [Cost Optimization](cost-optimization.md)
