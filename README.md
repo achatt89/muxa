@@ -139,6 +139,8 @@ Muxa’s proxy lives between every IDE and the upstream provider, so optimizatio
 
 Best results happen when you warm caches (replay tests or common prompts), keep `session_id`/`user` identifiers consistent, and leave the proxy running for a day or two so semantic cache + headroom gather enough data. See [docs/cost-optimization.md](docs/cost-optimization.md) for the full playbook, configuration examples, timelines, and troubleshooting tips.
 
+For a deep dive into how hybrid routing scores requests and auto-switches between providers, see [docs/routing.md](docs/routing.md).
+
 ## Embeddings & @Codebase Support
 See [docs/embeddings.md](docs/embeddings.md) for Ollama, llama.cpp, OpenRouter, and OpenAI embeddings configuration. Example (Ollama):
 ```bash
@@ -166,3 +168,4 @@ Detailed GitBook-style docs live under `docs/`:
 - [docs/providers.md](docs/providers.md) — provider-specific notes
 - [docs/observability.md](docs/observability.md) — endpoints + dashboard
 - [docs/embeddings.md](docs/embeddings.md) — embeddings/@Codebase setup
+- [docs/routing.md](docs/routing.md) — hybrid routing & cost optimization

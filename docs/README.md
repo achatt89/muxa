@@ -12,3 +12,4 @@ nav_order: 1
 - [Observability](observability.md)
 - [Embeddings](embeddings.md)
 - [Cost Optimization](cost-optimization.md)
+- [Routing](routing.md)
