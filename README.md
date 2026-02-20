@@ -98,6 +98,29 @@ Variable descriptions:
 | OpenAI Codex CLI | `codex -c model_provider='"muxa"' -c model='"gpt-5.2-codex"' -c 'model_providers.muxa={name="Muxa Proxy",base_url="http://localhost:8081/v1",wire_api="responses",api_key="sk-muxa"}'` (no config change needed). |
 | GitHub Copilot | `export GITHUB_COPILOT_PROXY_URL=http://localhost:8081/v1`, `export GITHUB_COPILOT_PROXY_KEY=dummy`, restart the editor (Works for VS Code / JetBrains). |
 | Cline / Continue / ClawdBot / other OpenAI-compatible tools | Set their custom OpenAI endpoint to `http://localhost:8081/v1` with API key `sk-muxa` and use your desired model name. 
+
+### macOS launchctl environment helpers
+
+When you launch IDEs via Spotlight or the Dock, macOS ignores shell `export`s. Persist API keys for GUI apps (VS Code, Cursor, Claude CLI, etc.) with launchctl:
+
+```bash
+# Persist environment variables for GUI-launched apps
+## NO NEED to provide the actual key - just needs a dummy value so that openAI/Anthropic don't complain). The actual keys are read from the .env file
+launchctl setenv OPENAI_API_KEY sk-muxa
+launchctl setenv ANTHROPIC_API_KEY sk-muxa
+launchctl setenv MUXA_BASE_URL http://localhost:8081
+
+# Inspect current values
+launchctl getenv OPENAI_API_KEY
+launchctl getenv ANTHROPIC_API_KEY
+
+# Remove when rotating credentials
+launchctl unsetenv OPENAI_API_KEY
+launchctl unsetenv ANTHROPIC_API_KEY
+```
+
+After setting values, quit/reopen the IDE so it inherits the updated environment.
+
 ## Observability & Diagnostics
 - `/dashboard` – lightweight HTML dashboard showing health, metrics, routing, compression, and headroom status (auto-refreshing)
 - `/health`, `/health/live`, `/health/ready` – readiness probes
@@ -138,6 +161,7 @@ See `docker-compose.example.yml` for a sample proxy + Ollama stack.
 ## Additional Documentation
 Detailed GitBook-style docs live under `docs/`:
 - [docs/README.md](docs/README.md) — table of contents
+- [docs/cost-optimization.md](docs/cost-optimization.md) — cost optimization playbook
 - [docs/setup.md](docs/setup.md) — installation/config cheat sheet
 - [docs/providers.md](docs/providers.md) — provider-specific notes
 - [docs/observability.md](docs/observability.md) — endpoints + dashboard
