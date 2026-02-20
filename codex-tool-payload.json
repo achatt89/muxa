@@ -1,0 +1,16 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "terminal_execute",
+        "description": "Run shell commands"
+      }
+    },
+    {
+      "type": "web_search",
+      "name": "web_search",
+      "description": "Search the web"
+    }
+  ]
+}

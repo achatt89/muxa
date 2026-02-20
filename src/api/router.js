@@ -33,6 +33,58 @@ function buildCanonicalAnthropicRequest(body) {
   };
 }
 
+function sanitizeAnthropicMessages(messages = []) {
+  const sanitized = [];
+  let pendingToolIds = new Set();
+
+  for (const entry of messages || []) {
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const clone = {
+      ...entry,
+      content: Array.isArray(entry.content)
+        ? entry.content.map((part) => (part && typeof part === 'object' ? { ...part } : part))
+        : entry.content
+    };
+
+    if (clone.role === 'assistant') {
+      if (Array.isArray(clone.content)) {
+        const toolIds = new Set();
+        clone.content = clone.content.map((part) => {
+          if (part && part.type === 'tool_use') {
+            const toolId = part.id || randomId('tool');
+            toolIds.add(toolId);
+            return { ...part, id: toolId };
+          }
+          return part;
+        });
+        pendingToolIds = toolIds;
+      } else {
+        pendingToolIds = new Set();
+      }
+    }
+
+    if (clone.role === 'tool') {
+      const toolId = clone.tool_use_id || clone.id;
+      if (!toolId || !pendingToolIds.has(toolId)) {
+        clone.role = 'assistant';
+        delete clone.tool_use_id;
+      } else {
+        const nextPending = new Set(pendingToolIds);
+        nextPending.delete(toolId);
+        pendingToolIds = nextPending;
+      }
+    } else if (clone.role !== 'assistant') {
+      pendingToolIds = new Set();
+    }
+
+    sanitized.push(clone);
+  }
+
+  return sanitized;
+}
+
 function registerCoreRoutes(router, context) {
   const {
     config,
@@ -274,6 +326,7 @@ function registerCoreRoutes(router, context) {
   });
 
   router.post('/v1/messages', async ({ res, body = {} }) => {
+    body.messages = sanitizeAnthropicMessages(body.messages || []);
     const { query } = injectMemoriesIfNeeded(body);
     const cacheKey = cacheKeyFromMessages(body.messages || []);
     const canonical = buildCanonicalAnthropicRequest(body);
@@ -369,4 +422,4 @@ function registerCoreRoutes(router, context) {
   });
 }
 
-module.exports = { registerCoreRoutes };
+module.exports = { registerCoreRoutes, sanitizeAnthropicMessages };

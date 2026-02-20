@@ -23,6 +23,7 @@ class ProviderAdapter {
   normalizeResponse(canonical, providerResponse) {
     return {
       content: providerResponse.output,
+      toolCalls: providerResponse.toolCalls || [],
       usage: providerResponse.usage || { input_tokens: 0, output_tokens: 0 },
       finishReason: providerResponse.finishReason || 'stop'
     };

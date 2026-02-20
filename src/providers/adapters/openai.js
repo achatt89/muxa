@@ -123,8 +123,18 @@ class OpenAIAdapter extends ProviderAdapter {
 
         const data = await response.json();
         const choice = data.choices?.[0];
+        const toolCalls =
+          (choice?.message?.tool_calls || []).map((call) => ({
+            id: call.id,
+            type: call.type,
+            function: {
+              name: call.function?.name || '',
+              arguments: call.function?.arguments || ''
+            }
+          })) || [];
         return {
           output: choice?.message?.content || '',
+          toolCalls,
           usage: data.usage || {},
           finishReason: choice?.finish_reason || 'stop'
         };

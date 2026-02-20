@@ -6,6 +6,9 @@ const { approximateTokensFromText, extractTextFromMessages } = require('./utils'
 const { injectMemoriesIntoPrompt } = require('../memory/store');
 const { executeWithRouting } = require('../routing');
 const { ProviderError } = require('../providers/errors');
+const { mapToolCall } = require('../../packages/client-mapping');
+const { executeToolCall } = require('../tools/server-executor');
+const { convertResponsesToChat } = require('./responses-format');
 
 const shouldLogResponses = /^true|1|yes$/i.test(process.env.MUXA_LOG_RESPONSES || '');
 
@@ -41,6 +44,74 @@ const DEFAULT_MODEL_IDS = [
   'gpt-5-mini-2025-08-07'
 ];
 
+function normalizeResponsesTools(tools) {
+  if (!Array.isArray(tools)) {
+    return undefined;
+  }
+  return tools
+    .map((tool) => {
+      if (!tool || typeof tool !== 'object') {
+        return null;
+      }
+      const type = typeof tool.type === 'string' ? tool.type.toLowerCase() : '';
+      const isFunctionLike = !type || type === 'function' || type === 'custom';
+      if (!isFunctionLike) {
+        const customPayload =
+          tool.custom && typeof tool.custom === 'object' ? { ...tool.custom } : {};
+        if (!customPayload.kind) {
+          customPayload.kind = tool.type || 'custom';
+        }
+        if (customPayload.name === undefined) {
+          customPayload.name = tool.name || customPayload.kind;
+        }
+        if (tool.description && customPayload.description === undefined) {
+          customPayload.description = tool.description;
+        }
+        if (tool.parameters && customPayload.parameters === undefined) {
+          customPayload.parameters = tool.parameters;
+        }
+        return {
+          ...tool,
+          type: 'custom',
+          custom: customPayload
+        };
+      }
+      if (tool.function && typeof tool.function === 'object' && type !== 'custom') {
+        return {
+          ...tool,
+          type: 'function'
+        };
+      }
+      const normalized = { ...tool, type: 'function' };
+      const fn = {
+        name: tool.name || tool.function?.name || '',
+        description: tool.description || tool.function?.description,
+        parameters:
+          tool.parameters ||
+          tool.function?.parameters ||
+          tool.input_schema ||
+          tool.schema ||
+          tool.parameters_schema
+      };
+      if (!fn.name) {
+        return tool;
+      }
+      const cleanedFunction = {};
+      cleanedFunction.name = fn.name;
+      if (fn.description !== undefined) {
+        cleanedFunction.description = fn.description;
+      }
+      if (fn.parameters !== undefined) {
+        cleanedFunction.parameters = fn.parameters;
+      }
+      normalized.function = cleanedFunction;
+      return normalized;
+    })
+    .filter(Boolean);
+}
+
+// removed helper functions now handled by responses-format
+
 function coerceBoolean(value, defaultValue) {
   if (value === undefined || value === null) {
     return defaultValue;
@@ -57,17 +128,66 @@ function coerceBoolean(value, defaultValue) {
   return Boolean(value);
 }
 
+function detectClient(headers = {}) {
+  const ua = String(headers['user-agent'] || '').toLowerCase();
+  const clientHeader = String(headers['x-client'] || headers['x-client-name'] || '').toLowerCase();
+  if (ua.includes('codex') || clientHeader.includes('codex')) return 'codex';
+  if (ua.includes('cursor') || clientHeader.includes('cursor')) return 'cursor';
+  if (ua.includes('cline') || clientHeader.includes('cline') || ua.includes('kilo')) return 'cline';
+  if (ua.includes('continue') || clientHeader.includes('continue')) return 'continue';
+  return 'unknown';
+}
+
+function mapToolCallsForClient(toolCalls = [], clientType = 'unknown') {
+  if (!toolCalls.length || clientType === 'unknown') {
+    return toolCalls;
+  }
+
+  return toolCalls.map((call, index) => {
+    const fnName = call.function?.name || call.name || '';
+    let args = call.function?.arguments || call.arguments || '{}';
+    if (typeof args !== 'string') {
+      try {
+        args = JSON.stringify(args);
+      } catch {
+        args = '{}';
+      }
+    }
+
+    let mapped;
+    try {
+      mapped = mapToolCall(clientType, { name: fnName, arguments: JSON.parse(args) });
+    } catch {
+      mapped = mapToolCall(clientType, { name: fnName, arguments: args });
+    }
+
+    const normalizedArgs =
+      typeof mapped.arguments === 'string' ? mapped.arguments : JSON.stringify(mapped.arguments || {});
+
+    return {
+      ...call,
+      id: call.id || randomId(`call_${index}`),
+      function: {
+        ...(call.function || {}),
+        name: mapped.name,
+        arguments: normalizedArgs
+      }
+    };
+  });
+}
+
 function buildCanonicalOpenAIRequest(body, options = {}) {
   const defaultStream = options.defaultStream ?? false;
   const messages = body.messages || [];
   const promptLength = JSON.stringify(messages).length;
-  const requiresTools = Boolean(body.tools && body.tools.length);
+  const tools = normalizeResponsesTools(body.tools);
+  const requiresTools = Boolean(tools && tools.length);
   const stream = coerceBoolean(body.stream, defaultStream);
   return {
     api: 'openai',
     model: body.model || 'gpt-4-turbo',
     messages,
-    tools: body.tools,
+    tools,
     tool_choice: body.tool_choice,
     requiresTools,
     complexityScore: Math.round(promptLength / 400) + (requiresTools ? 2 : 0),
@@ -79,17 +199,121 @@ function buildCanonicalOpenAIRequest(body, options = {}) {
   };
 }
 
-function streamResponsesSse(res, payload, text, options = {}) {
-  const timestamp = Math.floor(Date.now() / 1000);
-  let sequenceNumber = 0;
-  const responseId = payload.id;
-  const messageId = randomId('msg');
-  const outputIndex = 0;
-  const contentText = text || '';
-  const baseResponse = {
+function normalizeUsageMetrics(raw = {}) {
+  const input = raw.input_tokens ?? raw.prompt_tokens ?? 0;
+  const output = raw.output_tokens ?? raw.completion_tokens ?? 0;
+  const total = raw.total_tokens ?? input + output;
+  return {
+    input_tokens: input,
+    output_tokens: output,
+    total_tokens: total
+  };
+}
+
+function createResponsePayload({ model, text, toolCalls = [], toolResults = [], usage }) {
+  const responseId = randomId('resp');
+  const createdAt = Math.floor(Date.now() / 1000);
+  const normalizedUsage = normalizeUsageMetrics(usage || {});
+  const toolCallItems = toolCalls.map((call, idx) => ({
+    id: call.id || randomId(`call_${idx}`),
+    type: 'function_call',
+    status: 'completed',
+    name: call.function?.name || call.name || 'function',
+    arguments: call.function?.arguments || call.arguments || '{}',
+    call_id: call.id || randomId(`call_ref_${idx}`)
+  }));
+  let messageItem = null;
+  if (text) {
+    messageItem = {
+      id: randomId('msg'),
+      type: 'message',
+      status: 'completed',
+      role: 'assistant',
+      content: [
+        {
+          type: 'output_text',
+          text
+        }
+      ]
+    };
+  }
+  const toolResultItems = (toolResults || [])
+    .filter((result) => result && typeof result.text === 'string')
+    .map((result, idx) => ({
+      id: result.id || randomId(`toolres_${idx}`),
+      type: 'message',
+      role: result.role || 'tool',
+      status: 'completed',
+      metadata: result.toolCallId ? { tool_call_id: result.toolCallId } : undefined,
+      content: [
+        {
+          type: 'output_text',
+          text: result.text
+        }
+      ]
+    }));
+  const outputItems = [
+    ...toolCallItems,
+    ...toolResultItems,
+    ...(messageItem ? [messageItem] : [])
+  ];
+  const payload = {
     id: responseId,
+    object: 'response',
+    created: createdAt,
+    created_at: createdAt,
+    model,
+    status: 'completed',
+    output: outputItems,
+    usage: normalizedUsage,
+    metadata: {}
+  };
+  return { payload, toolCallItems, toolResultItems, messageItem, text };
+}
+
+function extractResponseParts(payload = {}) {
+  const result = {
+    toolCallItems: [],
+    toolResultItems: [],
+    messageItem: null,
+    text: ''
+  };
+  for (const item of payload.output || []) {
+    if (item.type === 'function_call') {
+      result.toolCallItems.push(item);
+    } else if (item.type === 'message' && item.role === 'tool') {
+      result.toolResultItems.push(item);
+    } else if (!result.messageItem && item.type === 'message') {
+      result.messageItem = item;
+    }
+  }
+  if (result.messageItem) {
+    const textPart = (result.messageItem.content || []).find((part) => part.type === 'output_text');
+    result.text = textPart?.text || '';
+  }
+  return result;
+}
+
+function streamResponsesSse(res, payload, parts = {}) {
+  const timestamp = payload.created_at || payload.created || Math.floor(Date.now() / 1000);
+  let sequenceNumber = 0;
+  let outputIndex = 0;
+  const buildLegacyOutput = () => {
+    const legacy = [];
+    (parts.toolCallItems || []).forEach((item) => legacy.push(item));
+    (parts.toolResultItems || []).forEach((item) => legacy.push(item));
+    if (parts.messageItem) {
+      legacy.push(parts.messageItem);
+    }
+    return legacy;
+  };
+  const outputItems =
+    Array.isArray(payload.output) && payload.output.length ? payload.output : buildLegacyOutput();
+  const baseResponse = {
+    id: payload.id,
     object: payload.object,
-    created: payload.created || timestamp,
+    created_at: timestamp,
+    created: timestamp,
     model: payload.model,
     status: 'in_progress',
     output: [],
@@ -105,85 +329,130 @@ function streamResponsesSse(res, payload, text, options = {}) {
     });
   };
 
+  const streamFunctionCall = (item) => {
+    const callId = item.id || randomId('call');
+    const normalized = {
+      id: callId,
+      type: 'function_call',
+      status: item.status || 'completed',
+      name: item.name || item.function?.name || 'function',
+      arguments: item.arguments || item.function?.arguments || '{}',
+      call_id: item.call_id || callId
+    };
+
+    sendEvent('response.output_item.added', {
+      output_index: outputIndex,
+      item: normalized
+    });
+    sendEvent('response.function_call_arguments.delta', {
+      item_id: normalized.id,
+      output_index: outputIndex,
+      delta: normalized.arguments
+    });
+    sendEvent('response.function_call_arguments.done', {
+      item_id: normalized.id,
+      output_index: outputIndex,
+      arguments: normalized.arguments
+    });
+    sendEvent('response.output_item.done', {
+      output_index: outputIndex,
+      item: normalized
+    });
+    outputIndex += 1;
+  };
+
+  const streamMessageItem = (item) => {
+    const itemId = item.id || randomId('msg');
+    const metadata = item.metadata ? { metadata: item.metadata } : {};
+    const textPart =
+      (Array.isArray(item.content) ? item.content : []).find((part) => part.type === 'output_text') ||
+      null;
+    const textContent = typeof textPart?.text === 'string' ? textPart.text : '';
+    const addedItem = {
+      id: itemId,
+      type: 'message',
+      status: 'in_progress',
+      role: item.role || 'assistant',
+      content: [],
+      ...metadata
+    };
+
+    sendEvent('response.output_item.added', {
+      output_index: outputIndex,
+      item: addedItem
+    });
+    sendEvent('response.content_part.added', {
+      item_id: itemId,
+      output_index: outputIndex,
+      content_index: 0,
+      part: {
+        type: 'output_text',
+        text: ''
+      }
+    });
+
+    const chunks = textContent ? textContent.match(/[\s\S]{1,40}/g) || [] : [''];
+    for (const chunk of chunks) {
+      sendEvent('response.output_text.delta', {
+        item_id: itemId,
+        output_index: outputIndex,
+        content_index: 0,
+        delta: chunk
+      });
+    }
+
+    sendEvent('response.output_text.done', {
+      item_id: itemId,
+      output_index: outputIndex,
+      content_index: 0,
+      text: textContent
+    });
+    sendEvent('response.content_part.done', {
+      item_id: itemId,
+      output_index: outputIndex,
+      content_index: 0,
+      part: {
+        type: 'output_text',
+        text: textContent
+      }
+    });
+    const completedItem = {
+      ...item,
+      id: itemId,
+      content:
+        Array.isArray(item.content) && item.content.length
+          ? item.content
+          : [{ type: 'output_text', text: textContent }]
+    };
+
+    sendEvent('response.output_item.done', {
+      output_index: outputIndex,
+      item: completedItem
+    });
+    outputIndex += 1;
+  };
+
   sendEvent('response.created', { response: baseResponse });
   sendEvent('response.in_progress', { response: baseResponse });
 
-  sendEvent('response.output_item.added', {
-    output_index: outputIndex,
-    item: {
-      id: messageId,
-      type: 'message',
-      status: 'in_progress',
-      role: 'assistant',
-      content: []
+  for (const item of outputItems) {
+    if (!item || typeof item !== 'object') {
+      continue;
     }
-  });
-
-  sendEvent('response.content_part.added', {
-    item_id: messageId,
-    output_index: outputIndex,
-    content_index: 0,
-    part: {
-      type: 'output_text',
-      text: ''
+    if (item.type === 'function_call') {
+      streamFunctionCall(item);
+      continue;
     }
-  });
-
-  const chunks = contentText ? contentText.match(/[\s\S]{1,40}/g) || [] : [];
-  if (chunks.length === 0) {
-    chunks.push('');
+    if (item.type === 'message') {
+      streamMessageItem(item);
+    }
   }
-  for (const chunk of chunks) {
-    sendEvent('response.output_text.delta', {
-      item_id: messageId,
-      output_index: outputIndex,
-      content_index: 0,
-      delta: chunk
-    });
-  }
-
-  sendEvent('response.output_text.done', {
-    item_id: messageId,
-    output_index: outputIndex,
-    content_index: 0,
-    text: contentText
-  });
-
-  sendEvent('response.content_part.done', {
-    item_id: messageId,
-    output_index: outputIndex,
-    content_index: 0,
-    part: {
-      type: 'output_text',
-      text: contentText
-    }
-  });
-
-  const completedMessage = {
-    id: messageId,
-    type: 'message',
-    status: 'completed',
-    role: 'assistant',
-    content: [
-      {
-        type: 'output_text',
-        text: contentText
-      }
-    ]
-  };
-
-  sendEvent('response.output_item.done', {
-    output_index: outputIndex,
-    item: completedMessage
-  });
 
   sendEvent('response.completed', {
     response: {
       ...payload,
-      status: 'completed',
-      output: [completedMessage],
-      metadata: payload.metadata || {},
-      usage: payload.usage || null
+      created_at: payload.created_at || payload.created || timestamp,
+      created: payload.created || timestamp
     }
   });
 
@@ -307,24 +576,56 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
         res.setHeader('content-type', 'text/event-stream');
         res.setHeader('cache-control', 'no-cache');
         const chunkId = randomId('chatcmpl');
+        const streamModel = body.model || 'mock-openai';
+        const created = Math.floor(Date.now() / 1000);
+        const toolCalls = result.normalized.toolCalls || [];
+        for (const toolCall of toolCalls) {
+          writeSse(res, null, {
+            id: chunkId,
+            object: 'chat.completion.chunk',
+            created,
+            model: streamModel,
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: toolCall.id || randomId('call'),
+                      type: toolCall.type || 'function',
+                      function: {
+                        name: toolCall.function?.name || '',
+                        arguments: toolCall.function?.arguments || ''
+                      }
+                    }
+                  ]
+                },
+                finish_reason: null
+              }
+            ]
+          });
+        }
+        if (result.normalized.content) {
+          writeSse(res, null, {
+            id: chunkId,
+            object: 'chat.completion.chunk',
+            created,
+            model: streamModel,
+            choices: [
+              {
+                index: 0,
+                delta: { role: 'assistant', content: result.normalized.content },
+                finish_reason: null
+              }
+            ]
+          });
+        }
         writeSse(res, null, {
           id: chunkId,
           object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: body.model || 'mock-openai',
-          choices: [
-            {
-              index: 0,
-              delta: { role: 'assistant', content: result.normalized.content },
-              finish_reason: null
-            }
-          ]
-        });
-        writeSse(res, null, {
-          id: chunkId,
-          object: 'chat.completion.chunk',
-          created: Math.floor(Date.now() / 1000),
-          model: body.model || 'mock-openai',
+          created,
+          model: streamModel,
           choices: [
             {
               index: 0,
@@ -346,7 +647,13 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
         choices: [
           {
             index: 0,
-            message: { role: 'assistant', content: result.normalized.content },
+            message: {
+              role: 'assistant',
+              content: result.normalized.content,
+              tool_calls: (result.normalized.toolCalls && result.normalized.toolCalls.length)
+                ? result.normalized.toolCalls
+                : undefined
+            },
             finish_reason: result.normalized.finishReason || 'stop'
           }
         ],
@@ -388,16 +695,16 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
       wire_api: body?.wire_api,
       client: body?.client
     });
-    const normalizedInput = Array.isArray(body.input)
-      ? body.input.map((item) => ({ role: item.role || 'user', content: item.content }))
-      : [];
-    const memoryPayload = { messages: normalizedInput };
+    const converted = convertResponsesToChat(body);
+    const memoryPayload = { messages: converted.messages };
     const { query } = injectMemoriesIfNeeded(memoryPayload);
     const cacheKey = cacheKeyFromMessages(memoryPayload.messages || []);
     const canonical = buildCanonicalOpenAIRequest({
-      model: body.model,
+      model: converted.model || body.model,
       messages: memoryPayload.messages,
-      stream: body.stream,
+      tools: converted.tools || body.tools,
+      tool_choice: converted.tool_choice || body.tool_choice,
+      stream: converted.stream ?? body.stream,
       session_id: body.session_id,
       debug: body.debug
     }, { defaultStream: false });
@@ -420,7 +727,8 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
           res.statusCode = 200;
           res.setHeader('content-type', 'text/event-stream');
           res.setHeader('cache-control', 'no-cache');
-          streamResponsesSse(res, cached, cached.output[0]?.content[0]?.text || '');
+          const cachedParts = extractResponseParts(cached);
+          streamResponsesSse(res, cached, cachedParts);
         }
         return;
       }
@@ -430,28 +738,38 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
       res.setHeader('x-muxa-route', route.usedFallback ? 'fallback' : 'primary');
 
 
-      const payload = {
-        id: randomId('resp'),
-        object: 'response',
-        created: Math.floor(Date.now() / 1000),
+      const clientType = detectClient(req.headers);
+      const serverToolCalls = result.normalized.toolCalls || [];
+      const toolResults = [];
+      for (const call of serverToolCalls) {
+        try {
+          const text = await executeToolCall(call);
+          toolResults.push({ toolCallId: call.id, text });
+        } catch (toolError) {
+          toolResults.push({
+            toolCallId: call.id,
+            text: `Tool "${call.function?.name || call.name}" failed: ${toolError.message}`
+          });
+        }
+      }
+      const normalizedToolCalls = mapToolCallsForClient(serverToolCalls, clientType);
+      const resultText = result.normalized.content || '';
+      const { payload, toolCallItems, toolResultItems, messageItem } = createResponsePayload({
         model: body.model || 'mock-openai',
-        output: [
-          {
-            id: randomId('item'),
-            type: 'message',
-            role: 'assistant',
-            content: [{ type: 'output_text', text: result.normalized.content }]
-          }
-        ],
-        status: 'completed'
-      };
+        text: resultText,
+        toolCalls: normalizedToolCalls,
+        toolResults,
+        usage: result.normalized.usage
+      });
       const acceptsSse = String(req.headers.accept || '').toLowerCase().includes('text/event-stream');
       const enableStream = canonical.stream === true && acceptsSse;
       logResponses('streaming-check', {
         prefersJson: !canonical.stream,
         acceptsSse,
         canonicalStream: canonical.stream,
-        enableStream
+        enableStream,
+        clientType,
+        toolCallCount: normalizedToolCalls.length
       });
 
       if (!enableStream) {
@@ -460,7 +778,7 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
         res.statusCode = 200;
         res.setHeader('content-type', 'text/event-stream');
         res.setHeader('cache-control', 'no-cache');
-        streamResponsesSse(res, payload, result.normalized.content);
+        streamResponsesSse(res, payload, { toolCallItems, toolResultItems, messageItem, text: resultText });
       }
 
       storeCaches(cacheKey, query, canonical.model, payload);
@@ -515,4 +833,8 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
   });
 }
 
-module.exports = { registerOpenAIRoutes };
+module.exports = {
+  registerOpenAIRoutes,
+  normalizeResponsesTools,
+  buildCanonicalOpenAIRequest
+};

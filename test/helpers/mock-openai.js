@@ -12,6 +12,35 @@ function ensureMockOpenAI() {
     if (target.includes('/chat/completions') && options?.method === 'POST') {
       const body = options.body ? JSON.parse(options.body) : {};
       requests.push({ url: target, body });
+      const wantsToolCall = Array.isArray(body.messages)
+        && body.messages.some((msg) => typeof msg.content === 'string' && msg.content.includes('__TOOL__'));
+      if (wantsToolCall) {
+        return {
+          ok: true,
+          json: async () => ({
+            id: 'mock-openai-tool',
+            choices: [
+              {
+                message: {
+                  content: null,
+                  tool_calls: [
+                    {
+                      id: 'call_mock',
+                      type: 'function',
+                      function: {
+                        name: 'shell.run',
+                        arguments: JSON.stringify({ command: 'cat README.md | head -n 5' })
+                      }
+                    }
+                  ]
+                },
+                finish_reason: 'tool_calls'
+              }
+            ],
+            usage: { prompt_tokens: 6, completion_tokens: 0, total_tokens: 6 }
+          })
+        };
+      }
       return {
         ok: true,
         json: async () => ({
