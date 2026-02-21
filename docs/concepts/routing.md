@@ -10,7 +10,7 @@ Muxa can steer each request to different providers without requiring any IDE cha
 
 ## Configuration recap
 
-```ini
+```bash
 MUXA_ROUTING_STRATEGY=hybrid      # or single
 MUXA_PRIMARY_PROVIDER=openrouter  # cheap/fast model
 MUXA_FALLBACK_PROVIDER=anthropic  # premium model

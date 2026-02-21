@@ -74,7 +74,7 @@ Typical pattern:
 
 ### Example Layout
 
-```env
+```ini
 MUXA_PRIMARY_PROVIDER=openrouter
 OPENROUTER_API_KEY=sk-...
 OPENROUTER_MODEL=gpt-4o-mini

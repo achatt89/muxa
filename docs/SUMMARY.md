@@ -1,0 +1,26 @@
+# Summary
+
+- [Introduction](README.md)
+- [Getting Started]
+  - [Overview](getting-started/overview.md)
+  - [Installation (npm & Docker)](getting-started/installation.md)
+  - [Configuration (.env)](getting-started/configuration.md)
+- [Core Concepts]
+  - [Architecture Overview](concepts/architecture.md)
+  - [Routing Strategy (Single vs Hybrid)](concepts/routing.md)
+  - [Token Optimization](concepts/optimization.md)
+- [Providers]
+  - [Supported Providers](providers/supported.md)
+- [Client Integration]
+  - [Cursor](clients/cursor.md)
+  - [Claude Code](clients/claude-code.md)
+  - [GitHub Copilot](clients/copilot.md)
+  - [Other OpenAI-compatible Tools](clients/other.md)
+- [Advanced Features]
+  - [Semantic Cache & Embeddings](advanced/embeddings.md)
+  - [Memory & Settings](advanced/memory.md)
+  - [Headroom Compression](advanced/headroom.md)
+- [Operations]
+  - [Observability & Dashboards](operations/observability.md)
+  - [Cost Optimization Playbook](operations/cost.md)
+  - [Testing](operations/test.md)

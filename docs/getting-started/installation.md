@@ -7,23 +7,27 @@ nav_order: 2
 # Setup
 
 ## npm
-```
+```bash
+git clone https://github.com/your-org/muxa.git
+cd muxa
 npm install
-cp .env.example .env
-npm start
+cp .env.example .env  # fill in OPENAI_API_KEY, OPENROUTER_API_KEY, etc.
+npm start             # proxy listens on http://localhost:8081
 ```
 
 ## Docker
-```
+```bash
 docker run --rm -p 8081:8081 \
   -e OPENAI_API_KEY=sk-your-key \
-  -e MUXA_PRIMARY_PROVIDER=openai muxa:latest
+  -e MUXA_PRIMARY_PROVIDER=openai \
+  muxa:latest
 ```
 
 ## Homebrew
-```
-brew tap muxa/cli https://github.com/achatt89/muxa.git
+```bash
+brew tap muxa/cli https://github.com/your-org/muxa.git
 brew install muxa
+muxa --help
 ```
 
 ## Configuration Cheatsheet

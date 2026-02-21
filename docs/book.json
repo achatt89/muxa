@@ -1,0 +1,7 @@
+{
+    "title": "Muxa Developer Docs",
+    "description": "Universal LLM proxy for Cursor, Claude Code, Cline, Antigravity, and OpenAI-compatible tools.",
+    "author": "Muxa",
+    "language": "en",
+    "root": "."
+}
