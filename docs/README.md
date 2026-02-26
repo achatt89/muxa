@@ -13,3 +13,7 @@ nav_order: 1
 - [Embeddings](embeddings.md)
 - [Cost Optimization](cost-optimization.md)
 - [Routing](routing.md)
+
+---
+
+Built by [The Logic Atelier](https://thelogicatelier.com)
