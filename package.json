@@ -16,7 +16,8 @@
     "format:check": "prettier --check .",
     "check": "npm run lint && npm run format:check && npm test",
     "docs:build": "npx honkit@5.1.4 build docs docs-site",
-    "docs:serve": "npx honkit@5.1.4 serve docs"
+    "docs:serve": "npx honkit@5.1.4 serve docs",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
@@ -50,6 +51,8 @@
     "eslint-plugin-import": "^2.29.1",
     "eslint-plugin-n": "^17.8.1",
     "eslint-plugin-promise": "^6.1.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "nodemon": "^3.0.3",
     "prettier": "^3.2.5"
   },
@@ -57,5 +60,11 @@
   "files": [
     "src",
     "bin"
-  ]
+  ],
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
 }
