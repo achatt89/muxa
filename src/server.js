@@ -100,15 +100,15 @@ function createServer(options = {}) {
   const compressionEngine = new CompressionEngine({ mode: config.headroom.mode });
   const memoryStore = config.optimization.memory.enabled
     ? new MemoryStore({
-        surpriseThreshold: config.optimization.memory.surpriseThreshold,
-        maxEntries: config.optimization.memory.maxEntries
-      })
+      surpriseThreshold: config.optimization.memory.surpriseThreshold,
+      maxEntries: config.optimization.memory.maxEntries
+    })
     : null;
   const promptCache = config.optimization.promptCache.enabled
     ? new PromptCache({
-        ttlMs: config.optimization.promptCache.ttlMs,
-        maxEntries: config.optimization.promptCache.maxEntries
-      })
+      ttlMs: config.optimization.promptCache.ttlMs,
+      maxEntries: config.optimization.promptCache.maxEntries
+    })
     : null;
   const semanticCache = config.optimization.semanticCache.enabled
     ? new SemanticCache({ threshold: config.optimization.semanticCache.threshold })
@@ -143,9 +143,10 @@ function createServer(options = {}) {
 
       server.once('error', onError);
 
+      // eslint-disable-next-line promise/catch-or-return
       headroomSidecar
         .start()
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => {
           server.listen(config.port, config.host, () => {
             server.off('error', onError);

@@ -1,3 +1,4 @@
+/* eslint-env browser */
 const $ = (id) => document.getElementById(id);
 const state = {
   busy: false

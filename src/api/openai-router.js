@@ -6,6 +6,7 @@ const { approximateTokensFromText, extractTextFromMessages } = require('./utils'
 const { injectMemoriesIntoPrompt } = require('../memory/store');
 const { executeWithRouting } = require('../routing');
 const { ProviderError } = require('../providers/errors');
+// eslint-disable-next-line n/no-unpublished-require
 const { mapToolCall } = require('../../packages/client-mapping');
 const { executeToolCall } = require('../tools/server-executor');
 const { convertResponsesToChat } = require('./responses-format');

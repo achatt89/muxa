@@ -82,6 +82,7 @@ async function runCli(rawArgv = process.argv.slice(2)) {
 
   const shutdown = async () => {
     await server.stop();
+    // eslint-disable-next-line n/no-process-exit
     process.exit(0);
   };
 
@@ -101,6 +102,7 @@ async function startCli(rawArgv = process.argv.slice(2)) {
       process.stderr.write(`${error.stack || error.message}\n`);
     }
 
+    // eslint-disable-next-line n/no-process-exit
     process.exit(1);
   }
 }

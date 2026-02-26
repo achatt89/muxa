@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadConfig, ConfigError } = require('../../src/config');
+const { loadConfig } = require('../../src/config');
 
 test('requires fallback provider in hybrid routing', () => {
   assert.throws(() => {

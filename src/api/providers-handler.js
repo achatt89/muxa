@@ -3,7 +3,7 @@
 const { respondJson, respondError } = require('../http/response');
 const { SUPPORTED_PROVIDERS, LOCAL_PROVIDERS } = require('../config/constants');
 
-function registerProviderRoutes(router, { config, runtime }) {
+function registerProviderRoutes(router, { config }) {
   router.get('/v1/providers', ({ res }) => {
     const providers = SUPPORTED_PROVIDERS.map((provider) => ({
       name: provider,
