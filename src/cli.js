@@ -75,10 +75,9 @@ async function runCli(rawArgv = process.argv.slice(2)) {
   await server.start();
 
   const addr = server.address();
-  const displayAddress =
-    typeof addr === 'string' ? addr : `${addr.address}:${addr.port}`;
+  const displayAddress = typeof addr === 'string' ? addr : `${addr.address}:${addr.port}`;
 
-  process.stdout.write(`[muxa] listening on ${displayAddress}\n`);
+  process.stdout.write(`[muxa] listening on ${displayAddress} (logging: ${config.logging})\n`);
 
   const shutdown = async () => {
     await server.stop();

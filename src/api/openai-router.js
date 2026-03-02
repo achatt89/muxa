@@ -1,7 +1,7 @@
 'use strict';
 
 const { respondJson, writeSse, respondError } = require('../http/response');
-const { recordSessionTokenUsage, randomId } = require('../state/runtime');
+const { recordSessionTokenUsage, recordRoutingSample, randomId } = require('../state/runtime');
 const { approximateTokensFromText, extractTextFromMessages } = require('./utils');
 const { injectMemoriesIntoPrompt } = require('../memory/store');
 const { executeWithRouting } = require('../routing');
@@ -11,16 +11,14 @@ const { mapToolCall } = require('../../packages/client-mapping');
 const { executeToolCall } = require('../tools/server-executor');
 const { convertResponsesToChat } = require('./responses-format');
 
-const shouldLogResponses = /^true|1|yes$/i.test(process.env.MUXA_LOG_RESPONSES || '');
-
-const logResponses = (tag, data) => {
-  if (shouldLogResponses) {
+const logResponses = (config, tag, data) => {
+  if (config.logging) {
     console.log(`[responses:${tag}]`, data);
   }
 };
 
-function emitSse(res, event, payload) {
-  if (shouldLogResponses) {
+function emitSse(config, res, event, payload) {
+  if (config.logging) {
     const printable = typeof payload === 'string' ? payload : JSON.stringify(payload);
     console.log(`[responses:sse] ${event || 'message'} ${printable}`);
   }
@@ -163,7 +161,9 @@ function mapToolCallsForClient(toolCalls = [], clientType = 'unknown') {
     }
 
     const normalizedArgs =
-      typeof mapped.arguments === 'string' ? mapped.arguments : JSON.stringify(mapped.arguments || {});
+      typeof mapped.arguments === 'string'
+        ? mapped.arguments
+        : JSON.stringify(mapped.arguments || {});
 
     return {
       ...call,
@@ -177,13 +177,28 @@ function mapToolCallsForClient(toolCalls = [], clientType = 'unknown') {
   });
 }
 
-function buildCanonicalOpenAIRequest(body, options = {}) {
+function buildCanonicalOpenAIRequest(config, body, options = {}) {
   const defaultStream = options.defaultStream ?? false;
   const messages = body.messages || [];
   const promptLength = JSON.stringify(messages).length;
   const tools = normalizeResponsesTools(body.tools);
   const requiresTools = Boolean(tools && tools.length);
   const stream = coerceBoolean(body.stream, defaultStream);
+  const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
+  const msgContext = lastUserMsg
+    ? typeof lastUserMsg.content === 'string'
+      ? lastUserMsg.content
+      : JSON.stringify(lastUserMsg.content)
+    : '';
+  const msgScore = Math.ceil(msgContext.length / 500);
+  const historyScore = Math.floor(promptLength / 40000); // 40k tokens per point
+  const complexityScore = msgScore + historyScore + (requiresTools ? 1 : 0);
+  if (config.logging) {
+    console.log(
+      `\n>>> [muxa:score] MSG: ${msgScore} | HISTORY: ${historyScore} | TOOLS: ${requiresTools ? 1 : 0} | TOTAL: ${complexityScore} (threshold: 3)`
+    );
+    console.log(`>>> [muxa:info] promptLength: ${promptLength.toLocaleString()} chars\n`);
+  }
   return {
     api: 'openai',
     model: body.model || 'gpt-4-turbo',
@@ -191,7 +206,7 @@ function buildCanonicalOpenAIRequest(body, options = {}) {
     tools,
     tool_choice: body.tool_choice,
     requiresTools,
-    complexityScore: Math.round(promptLength / 400) + (requiresTools ? 2 : 0),
+    complexityScore,
     stream,
     metadata: {
       sessionId: body.session_id || body.user || 'demo'
@@ -201,9 +216,9 @@ function buildCanonicalOpenAIRequest(body, options = {}) {
 }
 
 function normalizeUsageMetrics(raw = {}) {
-  const input = raw.input_tokens ?? raw.prompt_tokens ?? 0;
-  const output = raw.output_tokens ?? raw.completion_tokens ?? 0;
-  const total = raw.total_tokens ?? input + output;
+  const input = Math.ceil(raw.input_tokens ?? raw.prompt_tokens ?? 0);
+  const output = Math.ceil(raw.output_tokens ?? raw.completion_tokens ?? 0);
+  const total = Math.ceil(raw.total_tokens ?? input + output);
   return {
     input_tokens: input,
     output_tokens: output,
@@ -253,11 +268,7 @@ function createResponsePayload({ model, text, toolCalls = [], toolResults = [], 
         }
       ]
     }));
-  const outputItems = [
-    ...toolCallItems,
-    ...toolResultItems,
-    ...(messageItem ? [messageItem] : [])
-  ];
+  const outputItems = [...toolCallItems, ...toolResultItems, ...(messageItem ? [messageItem] : [])];
   const payload = {
     id: responseId,
     object: 'response',
@@ -295,7 +306,7 @@ function extractResponseParts(payload = {}) {
   return result;
 }
 
-function streamResponsesSse(res, payload, parts = {}) {
+function streamResponsesSse(config, res, payload, parts = {}) {
   const timestamp = payload.created_at || payload.created || Math.floor(Date.now() / 1000);
   let sequenceNumber = 0;
   let outputIndex = 0;
@@ -323,7 +334,7 @@ function streamResponsesSse(res, payload, parts = {}) {
   };
 
   const sendEvent = (event, extra) => {
-    emitSse(res, event, {
+    emitSse(config, res, event, {
       type: event,
       sequence_number: sequenceNumber++,
       ...extra
@@ -366,8 +377,9 @@ function streamResponsesSse(res, payload, parts = {}) {
     const itemId = item.id || randomId('msg');
     const metadata = item.metadata ? { metadata: item.metadata } : {};
     const textPart =
-      (Array.isArray(item.content) ? item.content : []).find((part) => part.type === 'output_text') ||
-      null;
+      (Array.isArray(item.content) ? item.content : []).find(
+        (part) => part.type === 'output_text'
+      ) || null;
     const textContent = typeof textPart?.text === 'string' ? textPart.text : '';
     const addedItem = {
       id: itemId,
@@ -457,11 +469,14 @@ function streamResponsesSse(res, payload, parts = {}) {
     }
   });
 
-  emitSse(res, null, '[DONE]');
+  emitSse(config, res, null, '[DONE]');
   res.end();
 }
 
-function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCache, semanticCache }) {
+function registerOpenAIRoutes(
+  router,
+  { runtime, config, memoryStore, promptCache, semanticCache }
+) {
   const listAvailableModels = () => {
     const timestamp = Math.floor(Date.now() / 1000);
     const models = [];
@@ -546,7 +561,7 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
   router.post('/v1/chat/completions', async ({ res, body = {} }) => {
     const { query } = injectMemoriesIfNeeded(body);
     const cacheKey = cacheKeyFromMessages(body.messages || []);
-    const canonical = buildCanonicalOpenAIRequest(body, { defaultStream: false });
+    const canonical = buildCanonicalOpenAIRequest(config, body, { defaultStream: false });
     try {
       if (!canonical.stream) {
         const cached = getCachedResponse(cacheKey, query, canonical.model);
@@ -561,8 +576,21 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
       res.setHeader('x-muxa-route', route.usedFallback ? 'fallback' : 'primary');
       res.setHeader('x-muxa-routing-score', String(route.score));
 
+      if (config.logging) {
+        console.log(
+          `[muxa:routing] decision: ${route.usedFallback ? 'FALLBACK' : 'PRIMARY'} (provider: ${route.provider}, score: ${route.score}, threshold: 3)`
+        );
+      }
+      recordRoutingSample(runtime, {
+        provider: route.provider,
+        usedFallback: route.usedFallback,
+        latencyMs: 0, // Latency tracking not fully implemented in router yet
+        score: route.score
+      });
+
       const usage = {
-        prompt_tokens: result.normalized.usage.prompt_tokens ?? result.normalized.usage.input_tokens ?? 0,
+        prompt_tokens:
+          result.normalized.usage.prompt_tokens ?? result.normalized.usage.input_tokens ?? 0,
         completion_tokens:
           result.normalized.usage.completion_tokens ?? result.normalized.usage.output_tokens ?? 0
       };
@@ -651,9 +679,10 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
             message: {
               role: 'assistant',
               content: result.normalized.content,
-              tool_calls: (result.normalized.toolCalls && result.normalized.toolCalls.length)
-                ? result.normalized.toolCalls
-                : undefined
+              tool_calls:
+                result.normalized.toolCalls && result.normalized.toolCalls.length
+                  ? result.normalized.toolCalls
+                  : undefined
             },
             finish_reason: result.normalized.finishReason || 'stop'
           }
@@ -690,37 +719,39 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
   });
 
   router.post('/v1/responses', async ({ req, res, body = {} }) => {
-    logResponses('request', {
-      headers: req.headers,
-      stream: body?.stream,
-      wire_api: body?.wire_api,
-      client: body?.client
+    logResponses(config, 'request', {
+      method: req.method,
+      path: req.pathname || '/v1/responses',
+      stream: body?.stream
     });
     const converted = convertResponsesToChat(body);
     const memoryPayload = { messages: converted.messages };
     const { query } = injectMemoriesIfNeeded(memoryPayload);
     const cacheKey = cacheKeyFromMessages(memoryPayload.messages || []);
-    const canonical = buildCanonicalOpenAIRequest({
-      model: converted.model || body.model,
-      messages: memoryPayload.messages,
-      tools: converted.tools || body.tools,
-      tool_choice: converted.tool_choice || body.tool_choice,
-      stream: converted.stream ?? body.stream,
-      session_id: body.session_id,
-      debug: body.debug
-    }, { defaultStream: false });
+    const canonical = buildCanonicalOpenAIRequest(
+      config,
+      {
+        model: converted.model || body.model,
+        messages: memoryPayload.messages,
+        tools: converted.tools || body.tools,
+        tool_choice: converted.tool_choice || body.tool_choice,
+        stream: converted.stream ?? body.stream,
+        session_id: body.session_id,
+        debug: body.debug
+      },
+      { defaultStream: false }
+    );
 
     try {
       const cached = getCachedResponse(cacheKey, query, canonical.model);
       if (cached) {
-        const acceptsSse = String(req.headers.accept || '').toLowerCase().includes('text/event-stream');
+        const acceptsSse = String(req.headers.accept || '')
+          .toLowerCase()
+          .includes('text/event-stream');
         const enableStream = canonical.stream === true && acceptsSse;
-        logResponses('streaming-check', {
-          prefersJson: !canonical.stream,
-          acceptsSse,
-          canonicalStream: canonical.stream,
-          enableStream,
-          cached: true
+        logResponses(config, 'streaming-check', {
+          cached: true,
+          enableStream
         });
         if (!enableStream) {
           respondJson(res, 200, cached);
@@ -737,7 +768,17 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
       const { route, result } = await executeWithRouting({ config, canonicalRequest: canonical });
       res.setHeader('x-muxa-provider', route.provider);
       res.setHeader('x-muxa-route', route.usedFallback ? 'fallback' : 'primary');
-
+      if (config.logging) {
+        console.log(
+          `[muxa:routing] decision: ${route.usedFallback ? 'FALLBACK' : 'PRIMARY'} (provider: ${route.provider}, score: ${route.score}, threshold: 3)`
+        );
+      }
+      recordRoutingSample(runtime, {
+        provider: route.provider,
+        usedFallback: route.usedFallback,
+        latencyMs: 0,
+        score: route.score
+      });
 
       const clientType = detectClient(req.headers);
       const serverToolCalls = result.normalized.toolCalls || [];
@@ -755,6 +796,12 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
       }
       const normalizedToolCalls = mapToolCallsForClient(serverToolCalls, clientType);
       const resultText = result.normalized.content || '';
+      if (config.logging) {
+        console.log(`[muxa:router] resultText length: ${resultText.length}`);
+        if (resultText.length === 0) {
+          console.log('[muxa:router] WARNING: resultText is EMPTY');
+        }
+      }
       const { payload, toolCallItems, toolResultItems, messageItem } = createResponsePayload({
         model: body.model || 'mock-openai',
         text: resultText,
@@ -762,12 +809,11 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
         toolResults,
         usage: result.normalized.usage
       });
-      const acceptsSse = String(req.headers.accept || '').toLowerCase().includes('text/event-stream');
+      const acceptsSse = String(req.headers.accept || '')
+        .toLowerCase()
+        .includes('text/event-stream');
       const enableStream = canonical.stream === true && acceptsSse;
-      logResponses('streaming-check', {
-        prefersJson: !canonical.stream,
-        acceptsSse,
-        canonicalStream: canonical.stream,
+      logResponses(config, 'streaming-check', {
         enableStream,
         clientType,
         toolCallCount: normalizedToolCalls.length
@@ -779,7 +825,12 @@ function registerOpenAIRoutes(router, { runtime, config, memoryStore, promptCach
         res.statusCode = 200;
         res.setHeader('content-type', 'text/event-stream');
         res.setHeader('cache-control', 'no-cache');
-        streamResponsesSse(res, payload, { toolCallItems, toolResultItems, messageItem, text: resultText });
+        streamResponsesSse(config, res, payload, {
+          toolCallItems,
+          toolResultItems,
+          messageItem,
+          text: resultText
+        });
       }
 
       storeCaches(cacheKey, query, canonical.model, payload);

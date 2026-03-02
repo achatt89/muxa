@@ -1,4 +1,10 @@
-const { SUPPORTED_PROVIDERS, LOCAL_PROVIDERS, REQUIRED_CREDENTIALS, TOOL_EXECUTION_MODES, ROUTING_STRATEGIES } = require('./constants');
+const {
+  SUPPORTED_PROVIDERS,
+  LOCAL_PROVIDERS,
+  REQUIRED_CREDENTIALS,
+  TOOL_EXECUTION_MODES,
+  ROUTING_STRATEGIES
+} = require('./constants');
 const { ConfigError } = require('./errors');
 const pkg = require('../../package.json');
 const DEFAULT_OPENAI_MODEL_ALIASES = {
@@ -9,7 +15,13 @@ const DEFAULT_OPENAI_MODEL_ALIASES = {
   'gpt-4.1-mini': 'gpt-4o-mini',
   'gpt-4.1-nano': 'gpt-4o-mini'
 };
-const DEFAULT_OPENAI_MODEL_FALLBACKS = ['gpt-5.2-codex', 'gpt-5.2', 'gpt-4.1', 'gpt-4o', 'gpt-4o-mini'];
+const DEFAULT_OPENAI_MODEL_FALLBACKS = [
+  'gpt-5.2-codex',
+  'gpt-5.2',
+  'gpt-4.1',
+  'gpt-4o',
+  'gpt-4o-mini'
+];
 
 function parseBoolean(value, defaultValue = false) {
   if (value === undefined || value === null || value === '') {
@@ -60,7 +72,9 @@ function ensureCredentials(provider, env) {
 function validateToolMode(mode) {
   const normalized = String(mode || '').toLowerCase() || 'server';
   if (!TOOL_EXECUTION_MODES.includes(normalized)) {
-    throw new ConfigError(`Unsupported tool execution mode: ${mode}`, { allowed: TOOL_EXECUTION_MODES });
+    throw new ConfigError(`Unsupported tool execution mode: ${mode}`, {
+      allowed: TOOL_EXECUTION_MODES
+    });
   }
 
   return normalized;
@@ -69,7 +83,9 @@ function validateToolMode(mode) {
 function validateRoutingStrategy(strategy) {
   const normalized = String(strategy || '').toLowerCase() || 'single';
   if (!ROUTING_STRATEGIES.includes(normalized)) {
-    throw new ConfigError(`Unsupported routing strategy: ${strategy}`, { allowed: ROUTING_STRATEGIES });
+    throw new ConfigError(`Unsupported routing strategy: ${strategy}`, {
+      allowed: ROUTING_STRATEGIES
+    });
   }
 
   return normalized;
@@ -97,10 +113,48 @@ function validateFallback({ routingStrategy, fallbackProvider, primaryProvider }
 }
 
 function loadConfig(options = {}) {
+  // 1. Start with system environment and options.env (if provided)
   const env = Object.assign({}, process.env, options.env);
+
+  // 2. Load and parse .env manually to ensure it OVERRIDES previous values
+  // Skip this in test environment to avoid picking up the real .env file
+  if (env.NODE_ENV !== 'test') {
+    try {
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const paths = [path.resolve(process.cwd(), '.env'), path.resolve(__dirname, '../../.env')];
+      for (const envPath of paths) {
+        if (fs.existsSync(envPath)) {
+          const content = fs.readFileSync(envPath, 'utf8');
+          content.split('\n').forEach((line) => {
+            const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+            if (match) {
+              const key = match[1];
+              let value = match[2] || '';
+              if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+              if (value.startsWith("'") && value.endsWith("'")) value = value.slice(1, -1);
+              env[key] = value.trim();
+            }
+          });
+          break;
+        }
+      }
+    } catch (err) {
+      // Silence fs errors at this stage
+    }
+  }
+
+  // 3. Apply explicit options.env if provided (e.g. from tests)
+  // This has absolute precedence
+  if (options.env) {
+    Object.assign(env, options.env);
+  }
+
   const overrides = options.overrides || {};
 
-  const primaryProvider = normalizeProvider(overrides.primaryProvider ?? env.MUXA_PRIMARY_PROVIDER ?? 'mock');
+  const primaryProvider = normalizeProvider(
+    overrides.primaryProvider ?? env.MUXA_PRIMARY_PROVIDER ?? 'mock'
+  );
   assertSupportedProvider(primaryProvider, 'MUXA_PRIMARY_PROVIDER');
 
   const fallbackProvider = normalizeProvider(
@@ -111,8 +165,12 @@ function loadConfig(options = {}) {
     assertSupportedProvider(fallbackProvider, 'MUXA_FALLBACK_PROVIDER');
   }
 
-  const routingStrategy = validateRoutingStrategy(overrides.routingStrategy ?? env.MUXA_ROUTING_STRATEGY ?? 'single');
-  const toolExecutionMode = validateToolMode(overrides.toolExecutionMode ?? env.MUXA_TOOL_EXECUTION_MODE ?? 'server');
+  const routingStrategy = validateRoutingStrategy(
+    overrides.routingStrategy ?? env.MUXA_ROUTING_STRATEGY ?? 'single'
+  );
+  const toolExecutionMode = validateToolMode(
+    overrides.toolExecutionMode ?? env.MUXA_TOOL_EXECUTION_MODE ?? 'server'
+  );
   const port = resolvePort(overrides.port ?? env.MUXA_PORT ?? 8081);
   const host = overrides.host ?? env.MUXA_HOST ?? '0.0.0.0';
   const jsonBodyLimit = overrides.jsonBodyLimit ?? env.MUXA_JSON_BODY_LIMIT ?? '1mb';
@@ -176,7 +234,8 @@ function loadConfig(options = {}) {
     headroom: {
       enabled: parseBoolean(env.MUXA_HEADROOM_ENABLED, false),
       mode: env.MUXA_HEADROOM_MODE || 'audit'
-    }
+    },
+    logging: parseBoolean(env.MUXA_LOG_RESPONSES, false)
   };
 
   if (REQUIRED_CREDENTIALS[primaryProvider]) {
@@ -220,7 +279,10 @@ function parseModelAliases(raw) {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .reduce((acc, pair) => {
-      const [from, to] = pair.split(':').map((part) => part?.trim()).filter(Boolean);
+      const [from, to] = pair
+        .split(':')
+        .map((part) => part?.trim())
+        .filter(Boolean);
       if (from && to) {
         acc[from] = to;
       }

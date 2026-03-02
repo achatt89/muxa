@@ -16,7 +16,10 @@ test('requires credentials for OpenAI provider', () => {
   assert.throws(() => {
     loadConfig({
       env: {
-        MUXA_PRIMARY_PROVIDER: 'openai'
+        MUXA_PRIMARY_PROVIDER: 'openai',
+        MUXA_FALLBACK_PROVIDER: '',
+        MUXA_ROUTING_STRATEGY: 'single',
+        OPENAI_API_KEY: ''
       }
     });
   }, /Missing required credential/);
@@ -26,6 +29,8 @@ test('accepts provider when credentials present', () => {
   const config = loadConfig({
     env: {
       MUXA_PRIMARY_PROVIDER: 'openai',
+      MUXA_FALLBACK_PROVIDER: '',
+      MUXA_ROUTING_STRATEGY: 'single',
       OPENAI_API_KEY: 'sk-test'
     }
   });

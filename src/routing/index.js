@@ -20,7 +20,7 @@ function computeComplexityScore(canonicalRequest) {
 
 function selectRoute({ config, canonicalRequest }) {
   const score = computeComplexityScore(canonicalRequest);
-  const fallbackEligible = score > 3 || Boolean(canonicalRequest.requiresTools);
+  const fallbackEligible = score > 3;
   const shouldUseFallback =
     config.routingStrategy === 'hybrid' && config.fallbackProvider && fallbackEligible;
 
@@ -45,6 +45,13 @@ async function executeWithRouting({ config, canonicalRequest }) {
 
   const primaryRoute = selectRoute({ config, canonicalRequest });
 
+  // Log the routing decision if logging is enabled
+  if (config.logging) {
+    console.log(
+      `[muxa:routing] ${primaryRoute.usedFallback ? 'FALLBACK' : 'PRIMARY'} target: ${primaryRoute.provider} (score: ${primaryRoute.score})`
+    );
+  }
+
   try {
     const result = await attempt(primaryRoute.provider, primaryRoute.usedFallback);
     return {
@@ -57,6 +64,11 @@ async function executeWithRouting({ config, canonicalRequest }) {
       config.fallbackProvider &&
       primaryRoute.provider !== config.fallbackProvider
     ) {
+      if (config.logging) {
+        console.error(
+          `[muxa:routing] primary provider (${primaryRoute.provider}) failed: ${error.message}. Attempting fallback to ${config.fallbackProvider}.`
+        );
+      }
       const fallbackRoute = {
         provider: config.fallbackProvider,
         usedFallback: true,

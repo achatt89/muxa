@@ -14,11 +14,12 @@ const { MemoryStore } = require('./memory/store');
 const { PromptCache } = require('./cache/prompt-cache');
 const { SemanticCache } = require('./cache/semantic-cache');
 
-const shouldLogRequests = /^true|1|yes$/i.test(process.env.MUXA_LOG_RESPONSES || '');
-
-function logRequest(tag, payload) {
-  if (shouldLogRequests) {
-    console.log(`[muxa:${tag}]`, payload);
+function logRequest(config, tag, payload) {
+  if (config.logging) {
+    const isInternal = payload.path?.startsWith('/api/') || payload.path?.startsWith('/dashboard');
+    if (!isInternal) {
+      console.log(`[muxa:${tag}]`, payload);
+    }
   }
 }
 
@@ -48,12 +49,12 @@ function buildRequestHandler(config, integrations = {}) {
 
   return async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    if (shouldLogRequests) {
-      logRequest('request', {
+    if (config.logging) {
+      logRequest(config, 'request', {
         method: req.method,
         path: url.pathname,
-        query: url.search,
-        headers: req.headers
+        query: url.search
+        // headers: req.headers // Removed headers to cut noise
       });
     }
 
@@ -100,15 +101,15 @@ function createServer(options = {}) {
   const compressionEngine = new CompressionEngine({ mode: config.headroom.mode });
   const memoryStore = config.optimization.memory.enabled
     ? new MemoryStore({
-      surpriseThreshold: config.optimization.memory.surpriseThreshold,
-      maxEntries: config.optimization.memory.maxEntries
-    })
+        surpriseThreshold: config.optimization.memory.surpriseThreshold,
+        maxEntries: config.optimization.memory.maxEntries
+      })
     : null;
   const promptCache = config.optimization.promptCache.enabled
     ? new PromptCache({
-      ttlMs: config.optimization.promptCache.ttlMs,
-      maxEntries: config.optimization.promptCache.maxEntries
-    })
+        ttlMs: config.optimization.promptCache.ttlMs,
+        maxEntries: config.optimization.promptCache.maxEntries
+      })
     : null;
   const semanticCache = config.optimization.semanticCache.enabled
     ? new SemanticCache({ threshold: config.optimization.semanticCache.threshold })
@@ -146,7 +147,7 @@ function createServer(options = {}) {
       // eslint-disable-next-line promise/catch-or-return
       headroomSidecar
         .start()
-        .catch(() => { })
+        .catch(() => {})
         .finally(() => {
           server.listen(config.port, config.host, () => {
             server.off('error', onError);

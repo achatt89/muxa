@@ -23,6 +23,8 @@ Visit `http://localhost:8081/dashboard` (new HTML dashboard) for live health, me
 | `/headroom/status`, `/headroom/restart`, `/headroom/logs` | Headroom sidecar lifecycle. |
 
 ## Structured Logs
+Muxa defaults to a silent terminal. To see live traffic and routing decisions, set `MUXA_LOG_RESPONSES=true` in your `.env`.
+
 Set `MUXA_LOG_FORMAT=json` (future env) or use external tooling to tail logs. Example:
 ```
 npm start | npx pino-pretty

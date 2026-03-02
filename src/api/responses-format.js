@@ -1,10 +1,13 @@
 'use strict';
 
-const { randomId } = require('../state/runtime');
-
 const TEXT_TYPES = new Set(['text', 'input_text', 'output_text']);
 const TOOL_USE_TYPES = new Set(['tool_use', 'tool_call']);
-const TOOL_RESULT_TYPES = new Set(['tool_result', 'function_result', 'function_call_output', 'tool_response']);
+const TOOL_RESULT_TYPES = new Set([
+  'tool_result',
+  'function_result',
+  'function_call_output',
+  'tool_response'
+]);
 
 function flattenContent(content) {
   if (content === undefined || content === null) {
@@ -84,13 +87,17 @@ function convertResponsesToChat(body = {}) {
   };
 
   const processLegacyFunctionCall = (messages, raw) => {
-    const callId = raw.call_id || raw.id || randomId('call');
+    const callId = raw.call_id || raw.id || `hcall_${messages.length}_legacy`;
     toolCallIds.add(callId);
     messages.push({
       role: 'assistant',
       content: null,
       tool_calls: [
-        normalizeToolCall(callId, raw.name || raw.function?.name, raw.arguments ?? raw.function?.arguments ?? {})
+        normalizeToolCall(
+          callId,
+          raw.name || raw.function?.name,
+          raw.arguments ?? raw.function?.arguments ?? {}
+        )
       ]
     });
   };
@@ -159,22 +166,35 @@ function convertResponsesToChat(body = {}) {
           continue;
         }
         const partType = part.type || '';
-        if (TEXT_TYPES.has(partType) && (part.text || part.input_text || part.output_text || typeof part === 'string')) {
+        if (
+          TEXT_TYPES.has(partType) &&
+          (part.text || part.input_text || part.output_text || typeof part === 'string')
+        ) {
           textChunks.push(
-            part.text || part.input_text || part.output_text || (typeof part === 'string' ? part : '')
+            part.text ||
+              part.input_text ||
+              part.output_text ||
+              (typeof part === 'string' ? part : '')
           );
           continue;
         }
         if (TOOL_USE_TYPES.has(partType)) {
-          const callId = part.id || raw.id || randomId('call');
+          const callId = part.id || raw.id || `hcall_${messages.length}_part_${part.name || 'fn'}`;
           toolCallIds.add(callId);
           toolCalls.push(
-            normalizeToolCall(callId, part.name || part.function?.name, part.input ?? part.arguments ?? part.function?.arguments)
+            normalizeToolCall(
+              callId,
+              part.name || part.function?.name,
+              part.input ?? part.arguments ?? part.function?.arguments
+            )
           );
           continue;
         }
         if (TOOL_RESULT_TYPES.has(partType)) {
-          handleToolResult(part.tool_call_id || part.call_id || part.id, flattenContent(part.content ?? part.output ?? part.text));
+          handleToolResult(
+            part.tool_call_id || part.call_id || part.id,
+            flattenContent(part.content ?? part.output ?? part.text)
+          );
           continue;
         }
         if (typeof part.text === 'string') {
@@ -188,13 +208,17 @@ function convertResponsesToChat(body = {}) {
     }
 
     if (Array.isArray(raw.tool_calls) && raw.tool_calls.length) {
-      for (const call of raw.tool_calls) {
-        const callId = call.id || randomId('call');
+      raw.tool_calls.forEach((call, idx) => {
+        const callId = call.id || `hcall_${messages.length}_${idx}`;
         toolCallIds.add(callId);
         toolCalls.push(
-          normalizeToolCall(callId, call.function?.name || call.name, call.function?.arguments ?? call.arguments ?? {})
+          normalizeToolCall(
+            callId,
+            call.function?.name || call.name,
+            call.function?.arguments ?? call.arguments ?? {}
+          )
         );
-      }
+      });
     }
 
     if (textChunks.length || toolCalls.length || raw.tool_call_id) {
@@ -210,7 +234,10 @@ function convertResponsesToChat(body = {}) {
         baseMessage.tool_call_id = raw.tool_call_id;
       }
 
-      if (baseMessage.role === 'tool' && (!baseMessage.tool_call_id || !toolCallIds.has(baseMessage.tool_call_id))) {
+      if (
+        baseMessage.role === 'tool' &&
+        (!baseMessage.tool_call_id || !toolCallIds.has(baseMessage.tool_call_id))
+      ) {
         baseMessage.role = 'user';
         delete baseMessage.tool_call_id;
       }
@@ -221,7 +248,12 @@ function convertResponsesToChat(body = {}) {
     }
 
     for (const result of toolResults) {
-      safePushToolResult(messages, result.callId, result.text, role === 'tool' ? 'user' : role || 'user');
+      safePushToolResult(
+        messages,
+        result.callId,
+        result.text,
+        role === 'tool' ? 'user' : role || 'user'
+      );
     }
   }
 
@@ -256,11 +288,16 @@ function sanitizeChatMessages(messages = []) {
 
     if (Array.isArray(copy.tool_calls) && copy.tool_calls.length) {
       const currentCallIds = new Set();
+      const messageIndex = sanitized.length;
       copy.tool_calls = copy.tool_calls.map((call, idx) => {
-        const callId = call.id || randomId(`call_${idx}`);
+        const callId = call.id || `hcall_${messageIndex}_${idx}`;
         seenToolCalls.add(callId);
         currentCallIds.add(callId);
-        return normalizeToolCall(callId, call.function?.name || call.name, call.function?.arguments ?? call.arguments ?? {});
+        return normalizeToolCall(
+          callId,
+          call.function?.name || call.name,
+          call.function?.arguments ?? call.arguments ?? {}
+        );
       });
       pendingToolCalls = currentCallIds;
     } else {
@@ -271,15 +308,8 @@ function sanitizeChatMessages(messages = []) {
     }
 
     if (copy.role === 'tool') {
-      const callId =
-        copy.tool_call_id ||
-        copy.metadata?.tool_call_id ||
-        copy.call_id ||
-        copy.id;
-      const valid =
-        callId &&
-        seenToolCalls.has(callId) &&
-        pendingToolCalls.has(callId);
+      const callId = copy.tool_call_id || copy.metadata?.tool_call_id || copy.call_id || copy.id;
+      const valid = callId && seenToolCalls.has(callId) && pendingToolCalls.has(callId);
       if (!valid) {
         sanitized.push({
           role: 'assistant',
@@ -288,7 +318,7 @@ function sanitizeChatMessages(messages = []) {
         pendingToolCalls = new Set();
         continue;
       }
-      pendingToolCalls = new Set();
+      pendingToolCalls.delete(callId);
     } else if (!Array.isArray(copy.tool_calls) || !copy.tool_calls.length) {
       pendingToolCalls = new Set();
     }

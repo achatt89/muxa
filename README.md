@@ -110,7 +110,7 @@ Variable descriptions:
 |--------|---------------|
 | Claude Code CLI | `ANTHROPIC_BASE_URL=http://localhost:8081 ANTHROPIC_API_KEY=sk-muxa claude "Prompt"` (or export those vars once before running). |
 | Cursor IDE | Settings → **Features → Models** → Base URL `http://localhost:8081/v1`, API key `sk-muxa`, select the model configured in `.env`. For `@Codebase`, enable embeddings [docs/embeddings.md](docs/embeddings.md). |
-| OpenAI Codex CLI | `codex -c model_provider='"muxa"' -c model='"gpt-5.2-codex"' -c 'model_providers.muxa={name="Muxa Proxy",base_url="http://localhost:8081/v1",wire_api="responses",api_key="sk-muxa"}'` (no config change needed). |
+| OpenAI Codex CLI | `codex -c model_provider='"muxa"' -c model='"gpt-5.2-codex"' -c 'model_providers.muxa={name="Muxa Proxy",base_url="http://localhost:8081/v1",wire_api="responses",api_key="sk-muxa"}'` (Muxa maps this to your local primary provider model). |
 | GitHub Copilot | `export GITHUB_COPILOT_PROXY_URL=http://localhost:8081/v1`, `export GITHUB_COPILOT_PROXY_KEY=dummy`, restart the editor (Works for VS Code / JetBrains). |
 | Cline / Continue / ClawdBot / other OpenAI-compatible tools | Set their custom OpenAI endpoint to `http://localhost:8081/v1` with API key `sk-muxa` and use your desired model name. 
 
