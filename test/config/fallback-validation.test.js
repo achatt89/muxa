@@ -6,7 +6,9 @@ test('requires fallback provider in hybrid routing', () => {
   assert.throws(() => {
     loadConfig({
       env: {
-        MUXA_ROUTING_STRATEGY: 'hybrid'
+        MUXA_ROUTING_STRATEGY: 'hybrid',
+        MUXA_FALLBACK_PROVIDER: '',
+        MUXA_PRIMARY_PROVIDER: 'mock'
       }
     });
   }, /Hybrid routing requires FALLBACK provider/);

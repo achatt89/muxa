@@ -35,14 +35,20 @@ class OpenAIAdapter extends ProviderAdapter {
       });
     }
     const normalizeContent = (content) => {
+      if (content === null) {
+        return null;
+      }
       if (typeof content === 'string') {
         return content;
       }
       if (Array.isArray(content)) {
-        return content.map((part) => normalizeContent(part)).filter(Boolean).join('\n');
+        return content
+          .map((part) => normalizeContent(part))
+          .filter(Boolean)
+          .join('\n');
       }
       if (!content || typeof content !== 'object') {
-        return content === undefined || content === null ? '' : String(content);
+        return content === undefined ? '' : String(content);
       }
       if (typeof content.text === 'string') {
         return content.text;
@@ -52,10 +58,19 @@ class OpenAIAdapter extends ProviderAdapter {
       }
       return JSON.stringify(content);
     };
-    const messages = (canonical.messages || []).map((message) => ({
-      role: message.role || 'user',
-      content: normalizeContent(message.content)
-    }));
+    const messages = (canonical.messages || []).map((message) => {
+      const msg = {
+        role: message.role || 'user',
+        content: normalizeContent(message.content)
+      };
+      if (message.tool_calls) {
+        msg.tool_calls = message.tool_calls;
+      }
+      if (message.tool_call_id) {
+        msg.tool_call_id = message.tool_call_id;
+      }
+      return msg;
+    });
     const payload = {
       model: resolvedModel,
       messages,
@@ -154,10 +169,13 @@ class OpenAIAdapter extends ProviderAdapter {
       }
     }
 
-    throw lastError || new ProviderError('OpenAI request failed', {
-      provider: this.name,
-      code: 'OPENAI_UNKNOWN_ERROR'
-    });
+    throw (
+      lastError ||
+      new ProviderError('OpenAI request failed', {
+        provider: this.name,
+        code: 'OPENAI_UNKNOWN_ERROR'
+      })
+    );
   }
 }
 

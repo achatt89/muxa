@@ -20,7 +20,11 @@ const adapterFactories = new Map([
   ['mock', () => new MockLocalAdapter()],
   ['mock-local', () => new MockLocalAdapter()],
   ['openrouter', (config) => new OpenRouterAdapter(config?.providers?.openrouter || {})],
-  ['ollama', (config) => new OllamaAdapter(config?.providers?.ollama || {})]
+  [
+    'ollama',
+    (config) =>
+      new OllamaAdapter({ ...(config?.providers?.ollama || {}), logging: config?.logging })
+  ]
 ]);
 
 function getAdapter(name, config) {

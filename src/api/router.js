@@ -1,7 +1,7 @@
 'use strict';
 
 const { respondJson, respondError, writeSse } = require('../http/response');
-const { recordSessionTokenUsage, randomId } = require('../state/runtime');
+const { recordSessionTokenUsage, recordRoutingSample, randomId } = require('../state/runtime');
 const { extractTextFromMessages, approximateTokensFromText } = require('./utils');
 const { injectMemoriesIntoPrompt } = require('../memory/store');
 const { executeWithRouting } = require('../routing');
@@ -244,8 +244,7 @@ function registerCoreRoutes(router, context) {
       total: runtime.agentExecutions.size,
       active: Array.from(runtime.agentExecutions.values()).filter(
         (agent) => agent.status === 'running'
-      )
-        .length
+      ).length
     };
     respondJson(res, 200, stats);
   });
@@ -345,9 +344,18 @@ function registerCoreRoutes(router, context) {
       res.setHeader('x-muxa-route', route.usedFallback ? 'fallback' : 'primary');
       res.setHeader('x-muxa-routing-score', String(route.score));
 
+      recordRoutingSample(runtime, {
+        provider: route.provider,
+        usedFallback: route.usedFallback,
+        latencyMs: 0,
+        score: route.score
+      });
+
       const usage = {
-        input_tokens: result.normalized.usage.input_tokens ?? result.normalized.usage.prompt_tokens ?? 0,
-        output_tokens: result.normalized.usage.output_tokens ?? result.normalized.usage.completion_tokens ?? 0
+        input_tokens:
+          result.normalized.usage.input_tokens ?? result.normalized.usage.prompt_tokens ?? 0,
+        output_tokens:
+          result.normalized.usage.output_tokens ?? result.normalized.usage.completion_tokens ?? 0
       };
 
       recordSessionTokenUsage(runtime, canonical.metadata.sessionId, {

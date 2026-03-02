@@ -80,4 +80,5 @@ muxa --help
 | `MUXA_HEADROOM_ENABLED` | Enable headroom sidecar/compression. |
 | `MUXA_PROMPT_CACHE_ENABLED` | Enable exact prompt cache. |
 | `MUXA_SEMANTIC_CACHE_ENABLED` | Enable semantic cache (requires embeddings). |
+| `MUXA_LOG_RESPONSES` | Enable detailed request/response logging in terminal. |
 | `MUXA_MEMORY_ENABLED` | Enable long-term memory extraction/injection. |

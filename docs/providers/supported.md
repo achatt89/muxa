@@ -18,6 +18,9 @@ Advanced: `OPENROUTER_BASE_URL` (default `https://openrouter.ai/api/v1`).
 MUXA_PRIMARY_PROVIDER=ollama
 OLLAMA_BASE_URL=http://localhost:11434
 ```
+**Notes:**
+- **Timeout**: Muxa enforces a 300s (5-minute) timeout for local models.
+- **Compatibility**: Automatic message content flattening is applied to ensure local models receive clean text inputs.
 Set `MUXA_FALLBACK_PROVIDER` to a cloud provider for hybrid routing.
 
 ## Anthropic / OpenAI

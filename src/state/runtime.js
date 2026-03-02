@@ -55,6 +55,16 @@ function recordSessionTokenUsage(runtime, sessionId, usage) {
   runtime.sessions.set(sessionId, existing);
 }
 
+function recordRoutingSample(runtime, sample) {
+  runtime.routingSamples.push({
+    ...sample,
+    timestamp: Date.now()
+  });
+  if (runtime.routingSamples.length > 50) {
+    runtime.routingSamples.shift();
+  }
+}
+
 function randomId(prefix) {
   return `${prefix}_${crypto.randomUUID()}`;
 }
@@ -63,5 +73,6 @@ module.exports = {
   createRuntimeState,
   recordRequest,
   recordSessionTokenUsage,
+  recordRoutingSample,
   randomId
 };

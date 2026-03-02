@@ -18,7 +18,18 @@ MUXA_PRIMARY_PROVIDER=openrouter
 
 # The fallback provider (used in 'hybrid' mode or if the primary fails)
 MUXA_FALLBACK_PROVIDER=anthropic
+
+# Enable detailed request/response logging in terminal
+MUXA_LOG_RESPONSES=false
 ```
+
+## Environment Precedence
+
+Muxa uses a strict priority system for configuration:
+
+1. **Local `.env` File**: Values in your `.env` file (in the current working directory) take **absolute priority** and will override any existing system shell environment variables.
+2. **System Environment**: Standard shell variables are used if not defined in `.env`.
+3. **Defaults**: Hardcoded safe defaults are used as a final fallback.
 
 ## Provider API Keys
 
